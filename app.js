@@ -14,11 +14,10 @@ const map = L.map('map', {
     maxBoundsViscosity: 1.0 // Verrouillage strict du défilement
 });
 
-// 3. Fond de plan CARTO Voyager (noms de rues lisibles et contrastés)
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
+// 3. Fond de plan OpenStreetMap France (gratuit, sans clé API, rues très détaillées)
+L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 20
 }).addTo(map);
 
 // 4. Groupes de calques TC
