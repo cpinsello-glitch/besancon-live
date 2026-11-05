@@ -24,7 +24,7 @@ html {
     top: 15px;
     right: 15px;
     z-index: 1000;
-    background: rgba(18, 18, 20, 0.92);
+    background: rgba(18, 18, 20, 0.94);
     backdrop-filter: blur(8px);
     padding: 14px 18px;
     border-radius: 8px;
@@ -34,7 +34,7 @@ html {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-width: 220px;
+    min-width: 210px;
 }
 
 .hud-title {
@@ -58,38 +58,36 @@ html {
 }
 
 @keyframes blink {
-
     0%,
     100% {
         opacity: 1;
         transform: scale(1);
     }
-
     50% {
         opacity: 0.4;
         transform: scale(0.85);
     }
 }
 
-.status-picker {
+.hud-status-badge {
     display: flex;
-    gap: 8px;
     align-items: center;
-    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ff3b30;
+    background: rgba(255, 59, 48, 0.12);
+    border: 1px solid rgba(255, 59, 48, 0.35);
+    padding: 6px 10px;
+    border-radius: 6px;
 }
 
-.btn-color {
-    flex: 1;
-    height: 28px;
-    border-radius: 4px;
-    border: 2px solid transparent;
-    cursor: pointer;
-    transition: transform 0.1s, border-color 0.2s;
-}
-
-.btn-color.active {
-    border-color: #fff;
-    transform: scale(1.05);
+.badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff3b30;
+    box-shadow: 0 0 6px #ff3b30;
 }
 
 .btn-action {
@@ -120,22 +118,30 @@ html {
 
 /* Personnalisation sélecteur de calques Leaflet */
 .leaflet-control-layers {
-    background: rgba(18, 18, 20, 0.92) !important;
+    background: rgba(18, 18, 20, 0.94) !important;
     color: #fff !important;
     border: 1px solid #2e2e33 !important;
     border-radius: 8px !important;
     padding: 8px 12px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
 }
 
+.leaflet-control-layers-base label,
 .leaflet-control-layers-overlays label {
-    font-size: 13px;
+    font-size: 12px;
     margin-bottom: 4px;
     display: flex;
     align-items: center;
     gap: 6px;
+    cursor: pointer;
 }
 
-/* Rend le fond de plan sobre et estompé pour faire ressortir les blocages */
+.leaflet-control-layers-separator {
+    border-top: 1px solid #333 !important;
+    margin: 6px 0 !important;
+}
+
+/* Légère atténuation des tuiles OpenStreetMap directes */
 .map-tiles-muted {
-    filter: grayscale(70%) contrast(110%) brightness(95%);
+    filter: grayscale(40%) contrast(105%) brightness(98%);
 }

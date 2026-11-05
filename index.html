@@ -22,20 +22,16 @@
     <div class="hud-panel">
         <div class="hud-title">
             <div class="pulse"></div>
-            Impact Manifestation Live
+            Cortège Live
         </div>
 
-        <div class="status-picker">
-            <button class="btn-color active" style="background: #ff3b30;" title="Axe bloqué / Tête de cortège"
-                onclick="setDrawColor('#ff3b30', this)"></button>
-            <button class="btn-color" style="background: #ff9500;" title="Ralentissement / Risque fort"
-                onclick="setDrawColor('#ff9500', this)"></button>
-            <button class="btn-color" style="background: #34c759;" title="Axe libéré"
-                onclick="setDrawColor('#34c759', this)"></button>
+        <div class="hud-status-badge">
+            <span class="badge-dot"></span>
+            Tracé rouge cortège
         </div>
 
         <button class="btn-action" onclick="exportSituation()">Exporter la situation (JSON)</button>
-        <button class="btn-action btn-danger" onclick="clearAllShapes()">Effacer tous les tracés</button>
+        <button class="btn-action btn-danger" onclick="clearAllShapes()">Effacer les tracés</button>
     </div>
 
     <!-- Leaflet JS -->
