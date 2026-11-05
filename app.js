@@ -72,12 +72,13 @@ L.control.layers(null, overlays, { position: 'topleft', collapsed: false }).addT
 
 // 5. Outils de tracé Leaflet-Geoman
 let currentColor = '#ff3b30';
+let selectedLayer = null; // Mémorise la forme actuellement sélectionnée
 
 map.pm.addControls({
     position: 'topleft',
     drawMarker: true,
-    drawPolyline: true, // Tracé de rue
-    drawPolygon: true,  // Blocage de carrefour ou place
+    drawPolyline: true,
+    drawPolygon: true,
     drawCircle: false,
     drawRectangle: false,
     editMode: true,
@@ -85,28 +86,60 @@ map.pm.addControls({
     removalMode: true
 });
 
+// Appliquer la couleur aux futurs tracés
 function applyDrawStyle() {
     map.pm.setPathOptions({
         color: currentColor,
         fillColor: currentColor,
         fillOpacity: 0.45,
-        weight: 9
+        weight: 8
     });
 }
 applyDrawStyle();
 
+// Clic sur un bouton de couleur du HUD
 function setDrawColor(color, btn) {
     currentColor = color;
     applyDrawStyle();
+
+    // Met en valeur le bouton actif dans le menu
     document.querySelectorAll('.btn-color').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+
+    // SI une ligne/zone est déjà sélectionnée sur la carte, on change sa couleur immédiatement !
+    if (selectedLayer) {
+        selectedLayer.setStyle({
+            color: currentColor,
+            fillColor: currentColor
+        });
+    }
 }
 
+// Quand une nouvelle forme est créée
 map.on('pm:create', function (e) {
     const layer = e.layer;
     layer._manualImpact = true;
+
+    // Appliquer le style au tracé qui vient d'être fait
+    layer.setStyle({
+        color: currentColor,
+        fillColor: currentColor,
+        fillOpacity: 0.45,
+        weight: 8
+    });
+
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     layer.bindPopup(`<b>Zone impactée</b><br>Signalée à: ${timeString}`);
+
+    // Clic sur le tracé pour le sélectionner et pouvoir changer sa couleur via les boutons
+    layer.on('click', function () {
+        selectedLayer = layer;
+    });
+});
+
+// Réinitialiser la sélection si on clique dans le vide sur la carte
+map.on('click', function () {
+    selectedLayer = null;
 });
 
 function clearAllShapes() {
@@ -116,6 +149,7 @@ function clearAllShapes() {
                 map.removeLayer(layer);
             }
         });
+        selectedLayer = null;
     }
 }
 
