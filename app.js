@@ -1,13 +1,13 @@
 // =========================================================================
 // 🎨 1. CONFIGURATION DES COULEURS PAR LIGNE
-// Modifiez ici directement le code hexadécimal (#RRGGBB) pour chaque ligne :
+// Modifiez ici directement le code hexadécimal (#RRGGBB) de chaque ligne :
 // =========================================================================
 const COULEURS_LIGNES = {
     // --- TRAMWAYS ---
     'T1': '#00b4d8',       // Turquoise vif
     'T2': '#0077b6',       // Bleu océan
 
-    // --- LIANES MAJEURES (Bus à haute fréquence) ---
+    // --- LIANES MAJEURES (Bus fréquents) ---
     'L3': '#03045e',       // Bleu nuit
     'L4': '#d90429',       // Rouge magenta Ginko
     'L5': '#f77f00',       // Orange vif
@@ -23,12 +23,12 @@ const COULEURS_LIGNES = {
 
     // --- NAVETTES & SPÉCIAL ---
     'Citadelle':   '#e76f51', // Terre de Sienne / Ocre
-    'Plan B Tram': '#fb8500'  // Orange tramway de substitution
+    'Plan B Tram': '#fb8500'  // Orange substitution tramway
 };
 
 // =========================================================================
 // 🗺️ 2. BORNES STRICTES AU RÉSEAU URBAIN DE BESANÇON
-// Dézoomage limité strictement au bassin urbain (pas d'alentours)
+// Dézoomage limité strictement au bassin urbain (sans les alentours)
 // =========================================================================
 const boundsBesanconUrbain = L.latLngBounds(
     [47.200, 5.940], // Sud-Ouest (Châteaufarine / Velotte)
@@ -38,75 +38,109 @@ const boundsBesanconUrbain = L.latLngBounds(
 const map = L.map('map', {
     center: [47.243, 6.024], // Centre-ville (Boucle)
     zoom: 14,
-    minZoom: 13,             // Limite maxi en dézoomant : uniquement l'urbain
+    minZoom: 13,             // Limite stricte en dézoomant : uniquement l'urbain
     maxZoom: 19,
     maxBounds: boundsBesanconUrbain,
     maxBoundsViscosity: 1.0  // Verrouille strictement le défilement dans Besançon
 });
 
 // =========================================================================
-// 🌍 3. CHOIX DE FONDS DE PLAN (Visibilité & Contrastes)
+// 🌍 3. CHOIX DE FONDS DE PLAN SANS CLÉ API (Visibilité & Contrastes)
 // =========================================================================
+// 1) OSM Sombre : Inversion CSS directe des tuiles OSM (aucun filigrane, 0 clé, zoom 19)
+const fondOSMSombre = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+    maxZoom: 19,
+    className: 'tiles-dark'
+});
+
+// 2) OSM Standard : Tuiles OpenStreetMap officielles directes
 const fondOSMStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
     maxZoom: 19
 });
 
-const fondSombre = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
+// 3) OSM Gris Épuré : Niveaux de gris reposants sans saturation
+const fondOSMGris = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+    maxZoom: 19,
+    className: 'tiles-grayscale'
 });
 
-const fondClair = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
+// 4) Esri Canvas Sombre : Carte rasterisée sombre officielle Esri (sans clé)
+const fondEsriDark = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 16
 });
 
-const fondOSMFrance = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap France',
-    maxZoom: 19
+// 5) Esri Canvas Clair : Carte rasterisée grise claire officielle Esri (sans clé)
+const fondEsriLight = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 16
 });
 
-// Fond par défaut : Sombre (met en valeur maximale le tracé rouge et les lignes TC)
-fondSombre.addTo(map);
+// Fond par défaut : OSM Sombre (contraste optimal pour le tracé rouge)
+fondOSMSombre.addTo(map);
 
 const baseMaps = {
-    "Sombre (Contraste élevé)": fondSombre,
-    "OpenStreetMap Standard": fondOSMStandard,
-    "Clair Épuré": fondClair,
-    "OpenStreetMap France": fondOSMFrance
+    "OSM Sombre (Contraste élevé)": fondOSMSombre,
+    "OSM Standard (Clair officiel)": fondOSMStandard,
+    "OSM Gris Épuré (Minimaliste)": fondOSMGris,
+    "Esri Canvas Sombre": fondEsriDark,
+    "Esri Canvas Clair": fondEsriLight
 };
 
 // =========================================================================
-// 🚌 4. GROUPES DE CALQUES DU RÉSEAU TC
+// 🚌 4. CALQUES INDIVIDUELS : UNE COCHE PAR LIGNE SANS FUSION
 // =========================================================================
-const tramLayer = L.layerGroup();
-const busLianesLayer = L.layerGroup();
-const busLignesLayer = L.layerGroup();
-const navettesLayer = L.layerGroup();
-const manifestationLayer = L.layerGroup();
+const manifestationLayer = L.layerGroup().addTo(map);
 
-// Calques affichés par défaut
-tramLayer.addTo(map);
-busLianesLayer.addTo(map);
-busLignesLayer.addTo(map);
-navettesLayer.addTo(map);
-manifestationLayer.addTo(map);
+// Calques individuels par ligne
+const lineLayers = {
+    'T1': L.layerGroup().addTo(map),
+    'T2': L.layerGroup().addTo(map),
+    'L3': L.layerGroup().addTo(map),
+    'L4': L.layerGroup().addTo(map),
+    'L5': L.layerGroup().addTo(map),
+    'L6': L.layerGroup().addTo(map),
+    '7':  L.layerGroup().addTo(map),
+    '8':  L.layerGroup().addTo(map),
+    '9':  L.layerGroup().addTo(map),
+    '10': L.layerGroup().addTo(map),
+    '11': L.layerGroup().addTo(map),
+    '12': L.layerGroup().addTo(map),
+    'Citadelle': L.layerGroup().addTo(map),
+    'Plan B Tram': L.layerGroup().addTo(map)
+};
 
+// Générateur de puce de couleur pour le menu
+function badge(color) {
+    return `<span class="legend-dot" style="background:${color}"></span>`;
+}
+
+// Menu des calques avec coche individuelle par ligne et pastille de couleur
 const overlays = {
     "🔴 Cortège Manifestation": manifestationLayer,
-    "Tramways (T1, T2)": tramLayer,
-    "Lianes majeures (L3 à L6)": busLianesLayer,
-    "Lignes de bus (7 à 12)": busLignesLayer,
-    "Navette Citadelle & Plan B": navettesLayer
+    [`${badge(COULEURS_LIGNES['T1'])} Tram T1`]: lineLayers['T1'],
+    [`${badge(COULEURS_LIGNES['T2'])} Tram T2`]: lineLayers['T2'],
+    [`${badge(COULEURS_LIGNES['L3'])} Liane L3`]: lineLayers['L3'],
+    [`${badge(COULEURS_LIGNES['L4'])} Liane L4`]: lineLayers['L4'],
+    [`${badge(COULEURS_LIGNES['L5'])} Liane L5`]: lineLayers['L5'],
+    [`${badge(COULEURS_LIGNES['L6'])} Liane L6`]: lineLayers['L6'],
+    [`${badge(COULEURS_LIGNES['7'])} Ligne 7`]: lineLayers['7'],
+    [`${badge(COULEURS_LIGNES['8'])} Ligne 8`]: lineLayers['8'],
+    [`${badge(COULEURS_LIGNES['9'])} Ligne 9`]: lineLayers['9'],
+    [`${badge(COULEURS_LIGNES['10'])} Ligne 10`]: lineLayers['10'],
+    [`${badge(COULEURS_LIGNES['11'])} Ligne 11`]: lineLayers['11'],
+    [`${badge(COULEURS_LIGNES['12'])} Ligne 12`]: lineLayers['12'],
+    [`${badge(COULEURS_LIGNES['Citadelle'])} Citadelle`]: lineLayers['Citadelle'],
+    [`${badge(COULEURS_LIGNES['Plan B Tram'])} Plan B Tram`]: lineLayers['Plan B Tram']
 };
 
 L.control.layers(baseMaps, overlays, { position: 'topleft', collapsed: false }).addTo(map);
 
 // =========================================================================
-// 📥 5. CHARGEMENT ET FILTRAGE STRICT DES LIGNES DEMANDÉES
+// 📥 5. CHARGEMENT ET DISTRIBUTION DANS LES CALQUES INDIVIDUELS
 // =========================================================================
 fetch('data/reseau_tc.geojson')
     .then(res => {
@@ -119,8 +153,11 @@ fetch('data/reseau_tc.geojson')
         L.geoJSON(data, {
             style: function (feature) {
                 const p = feature.properties || {};
-                const ref = p.ref || "";
-                const isTram = ['T1', 'T2'].includes(ref) || p.route === 'tram';
+                let ref = p.ref || "";
+                if (ref === '6') ref = 'L6';
+                if (ref === 'Plan B') ref = 'Plan B Tram';
+
+                const isTram = ['T1', 'T2'].includes(ref);
                 const isLiane = ['L3', 'L4', 'L5', 'L6'].includes(ref);
                 const isNavette = ['Citadelle', 'Plan B Tram'].includes(ref);
 
@@ -137,19 +174,16 @@ fetch('data/reseau_tc.geojson')
             },
             onEachFeature: function (feature, layer) {
                 const p = feature.properties || {};
-                const ref = p.ref ? `[${p.ref}] ` : '';
-                const name = p.name || "Ligne TC";
-                layer.bindTooltip(`<b>${ref}${name}</b>`, { sticky: true });
+                let ref = p.ref || "";
+                if (ref === '6') ref = 'L6';
+                if (ref === 'Plan B') ref = 'Plan B Tram';
 
-                const refKey = p.ref || "";
-                if (['T1', 'T2'].includes(refKey) || p.route === 'tram') {
-                    tramLayer.addLayer(layer);
-                } else if (['L3', 'L4', 'L5', 'L6'].includes(refKey)) {
-                    busLianesLayer.addLayer(layer);
-                } else if (['7', '8', '9', '10', '11', '12'].includes(refKey)) {
-                    busLignesLayer.addLayer(layer);
-                } else if (['Citadelle', 'Plan B Tram', 'Plan B'].includes(refKey)) {
-                    navettesLayer.addLayer(layer);
+                const name = p.name || `Ligne ${ref}`;
+                layer.bindTooltip(`<b>[${ref}] ${name}</b>`, { sticky: true });
+
+                // Ajout au calque spécifique de la ligne
+                if (lineLayers[ref]) {
+                    lineLayers[ref].addLayer(layer);
                 }
             }
         });
@@ -176,7 +210,7 @@ map.pm.addControls({
     removalMode: true
 });
 
-// Forcer le tracé rouge
+// Style de tracé rouge
 map.pm.setPathOptions({
     color: ROUGE_MANIF,
     fillColor: ROUGE_MANIF,
@@ -184,7 +218,7 @@ map.pm.setPathOptions({
     weight: 7
 });
 
-// Événement à la création d'un tracé de cortège
+// Événement lors de la création d'un tracé Geoman
 map.on('pm:create', function (e) {
     const layer = e.layer;
     layer._manualImpact = true;
