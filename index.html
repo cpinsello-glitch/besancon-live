@@ -30,6 +30,12 @@
             Tracé rouge cortège
         </div>
 
+        <!-- Boutons Tout cocher / Tout décocher les lignes TC -->
+        <div class="hud-buttons-row">
+            <button class="btn-action btn-sm" onclick="toggleAllLines(true)" title="Afficher toutes les lignes TC">Tout cocher</button>
+            <button class="btn-action btn-sm" onclick="toggleAllLines(false)" title="Masquer toutes les lignes TC">Tout décocher</button>
+        </div>
+
         <button class="btn-action" onclick="exportSituation()">Exporter la situation (JSON)</button>
         <button class="btn-action btn-danger" onclick="clearAllShapes()">Effacer les tracés</button>
     </div>

@@ -90,6 +90,11 @@ html {
     box-shadow: 0 0 6px #ff3b30;
 }
 
+.hud-buttons-row {
+    display: flex;
+    gap: 6px;
+}
+
 .btn-action {
     background: #2a2a2e;
     color: #ddd;
@@ -100,6 +105,13 @@ html {
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
+    text-align: center;
+}
+
+.btn-action.btn-sm {
+    flex: 1;
+    padding: 5px 6px;
+    font-size: 11px;
 }
 
 .btn-action:hover {
@@ -124,9 +136,10 @@ html {
     border-radius: 8px !important;
     padding: 8px 12px !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 120px);
     overflow-y: auto;
     overflow-x: hidden;
+    min-width: 170px;
 }
 
 .leaflet-control-layers::-webkit-scrollbar {
@@ -157,24 +170,46 @@ html {
     margin: 8px 0 !important;
 }
 
+/* Barre d'action rapide dans le menu des calques */
+.layers-quick-actions {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #333;
+}
+
+.btn-toggle-all {
+    flex: 1;
+    background: #2a2a2e;
+    color: #ccc;
+    border: 1px solid #444;
+    font-size: 11px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-toggle-all:hover {
+    background: #3e3e46;
+    color: #fff;
+}
+
 /* Pastille de couleur pour chaque ligne dans la liste des calques */
 .legend-dot {
     display: inline-block;
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     border-radius: 3px;
-    margin-right: 2px;
+    margin-right: 3px;
     vertical-align: middle;
     box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
     flex-shrink: 0;
 }
 
-/* Filtres CSS sur tuiles directes OpenStreetMap (100% sans clé API, sans filigrane) */
-.tiles-dark,
-.tiles-dark .leaflet-tile {
-    filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(120%) !important;
-}
-
+/* Mode Épuré : Niveaux de gris neutres (100% sans clé API, sans filigrane) */
 .tiles-grayscale,
 .tiles-grayscale .leaflet-tile {
     filter: grayscale(100%) contrast(110%) brightness(96%) !important;
