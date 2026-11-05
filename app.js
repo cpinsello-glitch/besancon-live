@@ -14,9 +14,11 @@ const map = L.map('map', {
     maxBoundsViscosity: 1.0 // Verrouillage strict du défilement
 });
 
-// 3. Fond de plan OpenStreetMap France (gratuit, sans clé API, rues très détaillées)
-L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+// 3. Fond de carte épuré et contrasté (CartoDB Positron sans clé obligatoire)
+// Ce fond supprime la pollution visuelle pour ne laisser que le tracé net des rues
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    subdomains: 'abcd',
     maxZoom: 20
 }).addTo(map);
 
