@@ -24,51 +24,66 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 // 4. Groupes de calques TC
 const tramLayer = L.layerGroup();
-const busLayer = L.layerGroup();
+const busLianesLayer = L.layerGroup(); // L3 à L6
+const busAutresLayer = L.layerGroup();  // Toutes les autres lignes
 
-// Chargement du fichier GeoJSON local
 fetch('data/reseau_tc.geojson')
-    .then(res => {
-        if (!res.ok) throw new Error("Fichier GeoJSON introuvable ou vide");
-        return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
-        if (!data.features || data.features.length === 0) return;
+        if (!data.features) return;
+
+        // Palette de repérage rapide
+        const lianesColors = {
+            'L3': '#0080ff',
+            'L4': '#ff0055',
+            'L5': '#ffaa00',
+            'L6': '#00bb77'
+        };
 
         L.geoJSON(data, {
             style: function (feature) {
-                const isTram = feature.properties && feature.properties.route === 'tram';
-                return {
-                    color: isTram ? '#007aff' : '#5856d6',
-                    weight: isTram ? 5 : 3,
-                    opacity: 0.8,
-                    dashArray: isTram ? null : '6, 6'
-                };
+                const p = feature.properties || {};
+                const ref = p.ref || "";
+                const isTram = p.route === 'tram';
+
+                // Style Tramway
+                if (isTram) {
+                    return { color: '#00e5ff', weight: 5, opacity: 0.9 };
+                }
+                // Style Lianes (Lignes majeures)
+                if (lianesColors[ref]) {
+                    return { color: lianesColors[ref], weight: 4, opacity: 0.85 };
+                }
+                // Style Autres lignes de bus
+                return { color: '#8e8e93', weight: 2.5, opacity: 0.6, dashArray: '4, 4' };
             },
             onEachFeature: function (feature, layer) {
                 const p = feature.properties || {};
-                const lineName = p.name || p.ref || "Ligne TC";
-                layer.bindTooltip(`<b>${lineName}</b>`, { sticky: true });
+                const ref = p.ref ? `[${p.ref}] ` : '';
+                const name = p.name || "Ligne";
+                layer.bindTooltip(`<b>${ref}${name}</b>`, { sticky: true });
 
                 if (p.route === 'tram') {
                     tramLayer.addLayer(layer);
+                } else if (p.ref && ['L3', 'L4', 'L5', 'L6'].includes(p.ref)) {
+                    busLianesLayer.addLayer(layer);
                 } else {
-                    busLayer.addLayer(layer);
+                    busAutresLayer.addLayer(layer);
                 }
             }
         });
 
+        // Par défaut, afficher les trams et les lignes fortes
         tramLayer.addTo(map);
-        busLayer.addTo(map);
+        busLianesLayer.addTo(map);
     })
-    .catch(err => {
-        console.warn("Notice TC:", err.message);
-    });
+    .catch(err => console.warn("Erreur GeoJSON:", err));
 
-// Menu de contrôle des couches
+// Sélecteur de calques affinable pour régulation
 const overlays = {
-    "Lignes Tramway": tramLayer,
-    "Lignes Principales Bus": busLayer
+    "Tramways (T1, T2)": tramLayer,
+    "Lianes majeures (L3 à L6)": busLianesLayer,
+    "Autres lignes de bus": busAutresLayer
 };
 L.control.layers(null, overlays, { position: 'topleft', collapsed: false }).addTo(map);
 
