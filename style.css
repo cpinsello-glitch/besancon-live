@@ -26,7 +26,7 @@ html {
     z-index: 1000;
     background: rgba(18, 18, 20, 0.94);
     backdrop-filter: blur(8px);
-    padding: 14px 18px;
+    padding: 14px 16px;
     border-radius: 8px;
     color: #fff;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
@@ -34,7 +34,7 @@ html {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-width: 210px;
+    min-width: 220px;
 }
 
 .hud-title {
@@ -69,30 +69,66 @@ html {
     }
 }
 
-.hud-status-badge {
+/* Sélecteur de mode de tracé : Cortège / Travaux */
+.hud-mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.btn-mode {
     display: flex;
     align-items: center;
     gap: 8px;
+    background: #232328;
+    color: #ccc;
+    border: 1px solid #3a3a42;
+    padding: 8px 10px;
+    border-radius: 6px;
     font-size: 12px;
     font-weight: 600;
-    color: #ff3b30;
-    background: rgba(255, 59, 48, 0.12);
-    border: 1px solid rgba(255, 59, 48, 0.35);
-    padding: 6px 10px;
-    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
 }
 
-.badge-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+.btn-mode:hover {
+    background: #2e2e36;
+    color: #fff;
+}
+
+.btn-mode.active {
+    background: rgba(255, 59, 48, 0.15);
+    border-color: #ff3b30;
+    color: #fff;
+}
+
+#btn-mode-travaux.active {
+    background: rgba(255, 229, 0, 0.15);
+    border-color: #ffe500;
+}
+
+.mode-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.dot-cortege {
     background: #ff3b30;
     box-shadow: 0 0 6px #ff3b30;
 }
 
-.hud-buttons-row {
-    display: flex;
-    gap: 6px;
+.dot-travaux {
+    background: repeating-linear-gradient(
+        -45deg,
+        #ffe500,
+        #ffe500 4px,
+        #000 4px,
+        #000 8px
+    );
+    border: 1px solid #ffe500;
 }
 
 .btn-action {
@@ -106,12 +142,6 @@ html {
     cursor: pointer;
     transition: background 0.2s;
     text-align: center;
-}
-
-.btn-action.btn-sm {
-    flex: 1;
-    padding: 5px 6px;
-    font-size: 11px;
 }
 
 .btn-action:hover {
@@ -130,16 +160,17 @@ html {
 
 /* Personnalisation sélecteur de calques Leaflet */
 .leaflet-control-layers {
-    background: rgba(18, 18, 20, 0.94) !important;
+    background: rgba(18, 18, 20, 0.95) !important;
     color: #fff !important;
     border: 1px solid #2e2e33 !important;
     border-radius: 8px !important;
-    padding: 8px 12px !important;
+    padding: 8px 10px !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
-    max-height: calc(100vh - 120px);
+    max-height: calc(100vh - 40px);
     overflow-y: auto;
     overflow-x: hidden;
-    min-width: 170px;
+    min-width: 220px;
+    font-size: 12px;
 }
 
 .leaflet-control-layers::-webkit-scrollbar {
@@ -157,56 +188,37 @@ html {
 
 .leaflet-control-layers-base label,
 .leaflet-control-layers-overlays label {
-    font-size: 12px;
-    margin-bottom: 5px;
+    font-size: 11px;
+    margin-bottom: 4px;
     display: flex;
     align-items: center;
     gap: 6px;
     cursor: pointer;
+    white-space: nowrap;
 }
 
 .leaflet-control-layers-separator {
     border-top: 1px solid #333 !important;
-    margin: 8px 0 !important;
+    margin: 6px 0 !important;
 }
 
-/* Barre d'action rapide dans le menu des calques */
-.layers-quick-actions {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #333;
-}
-
-.btn-toggle-all {
-    flex: 1;
-    background: #2a2a2e;
-    color: #ccc;
-    border: 1px solid #444;
-    font-size: 11px;
-    padding: 4px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.15s, color 0.15s;
-}
-
-.btn-toggle-all:hover {
-    background: #3e3e46;
-    color: #fff;
-}
-
-/* Pastille de couleur pour chaque ligne dans la liste des calques */
+/* Pastille de couleur de la ligne */
 .legend-dot {
     display: inline-block;
-    width: 11px;
-    height: 11px;
-    border-radius: 3px;
-    margin-right: 3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 2px;
     vertical-align: middle;
     box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
     flex-shrink: 0;
+}
+
+/* Flèche de direction */
+.dest-arrow {
+    color: #888;
+    font-size: 10px;
+    margin: 0 2px;
 }
 
 /* Mode Épuré : Niveaux de gris neutres (100% sans clé API, sans filigrane) */

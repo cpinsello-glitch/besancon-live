@@ -22,21 +22,19 @@
     <div class="hud-panel">
         <div class="hud-title">
             <div class="pulse"></div>
-            Cortège Live
+            Supervision Live
         </div>
 
-        <div class="hud-status-badge">
-            <span class="badge-dot"></span>
-            Tracé rouge cortège
+        <!-- Sélecteur de mode de tracé : Cortège / Travaux -->
+        <div class="hud-mode-selector">
+            <button class="btn-mode active" id="btn-mode-cortege" onclick="setDrawMode('cortege')">
+                <span class="mode-dot dot-cortege"></span> 🔴 Cortège (10px)
+            </button>
+            <button class="btn-mode" id="btn-mode-travaux" onclick="setDrawMode('travaux')">
+                <span class="mode-dot dot-travaux"></span> 🚧 Travaux (10px)
+            </button>
         </div>
 
-        <!-- Boutons Tout cocher / Tout décocher les lignes TC -->
-        <div class="hud-buttons-row">
-            <button class="btn-action btn-sm" onclick="toggleAllLines(true)" title="Afficher toutes les lignes TC">Tout cocher</button>
-            <button class="btn-action btn-sm" onclick="toggleAllLines(false)" title="Masquer toutes les lignes TC">Tout décocher</button>
-        </div>
-
-        <button class="btn-action" onclick="exportSituation()">Exporter la situation (JSON)</button>
         <button class="btn-action btn-danger" onclick="clearAllShapes()">Effacer les tracés</button>
     </div>
 
