@@ -14,12 +14,12 @@ const map = L.map('map', {
     maxBoundsViscosity: 1.0 // Verrouillage strict du défilement
 });
 
-// 3. Fond de carte épuré et contrasté (CartoDB Positron sans clé obligatoire)
-// Ce fond supprime la pollution visuelle pour ne laisser que le tracé net des rues
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 20
+// 3. Fond de plan épuré et contrasté (sans clé API)
+// Ce style atténue le décor et met en avant la trame viaire et les noms d'axes
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+    className: 'map-tiles-muted' // Classe CSS pour désaturer et épurer le fond
 }).addTo(map);
 
 // 4. Groupes de calques TC

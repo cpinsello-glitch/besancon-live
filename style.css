@@ -134,3 +134,8 @@ html {
     align-items: center;
     gap: 6px;
 }
+
+/* Rend le fond de plan sobre et estompé pour faire ressortir les blocages */
+.map-tiles-muted {
+    filter: grayscale(70%) contrast(110%) brightness(95%);
+}
