@@ -1,96 +1,116 @@
-// 1. Définition des bornes géographiques strictes de Besançon
+// 1. Définition des bornes géographiques de la métropole de Besançon
 const boundsBesancon = L.latLngBounds(
-    [47.190, 5.920], // Sud-Ouest
-    [47.300, 6.100]  // Nord-Est
+    [47.120, 5.750], // Sud-Ouest (Grand Besançon)
+    [47.380, 6.250]  // Nord-Est (Grand Besançon)
 );
 
 // 2. Initialisation de la carte Leaflet
 const map = L.map('map', {
-    center: [47.243, 6.024], // Centre-ville (Boucle)
+    center: [47.243, 6.024], // Centre-ville (Boucle de Besançon)
     zoom: 14,
-    minZoom: 13,
+    minZoom: 11,
     maxZoom: 19,
     maxBounds: boundsBesancon,
-    maxBoundsViscosity: 1.0 // Verrouillage strict du défilement
+    maxBoundsViscosity: 0.8
 });
 
-// 3. Fond de plan épuré et contrasté (sans clé API)
-// Ce style atténue le décor et met en avant la trame viaire et les noms d'axes
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
+// 3. Fond de plan OpenStreetMap direct (sans CARTO, sans clé API)
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
     maxZoom: 19,
-    className: 'map-tiles-muted' // Classe CSS pour désaturer et épurer le fond
+    className: 'map-tiles-muted'
 }).addTo(map);
 
-// 4. Groupes de calques TC
+// 4. Groupes de calques Leaflet
 const tramLayer = L.layerGroup();
-const busLianesLayer = L.layerGroup(); // L3 à L6
-const busAutresLayer = L.layerGroup();  // Toutes les autres lignes
+const busLianesLayer = L.layerGroup();      // L3 à L6
+const busAutresLayer = L.layerGroup();       // Lignes complémentaires
+const manifestationLayer = L.layerGroup();   // Tracés en direct (Geoman)
 
+// Calques affichés par défaut sur la carte
+tramLayer.addTo(map);
+busLianesLayer.addTo(map);
+manifestationLayer.addTo(map);
+
+// Sélecteur de calques (cocher/décocher)
+const overlays = {
+    "Tramways (T1, T2)": tramLayer,
+    "Lianes majeures (L3 à L6)": busLianesLayer,
+    "Autres lignes de bus": busAutresLayer,
+    "Tracés Manifestation (En direct)": manifestationLayer
+};
+L.control.layers(null, overlays, { position: 'topleft', collapsed: false }).addTo(map);
+
+// 5. Chargement résilient des données TC (GeoJSON)
 fetch('data/reseau_tc.geojson')
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+    })
     .then(data => {
-        if (!data.features) return;
+        if (!data || !Array.isArray(data.features)) {
+            console.warn("Données TC : aucun objet 'features' valide trouvé.");
+            return;
+        }
 
-        // Palette de repérage rapide
+        // Palette des Lianes majeures
         const lianesColors = {
-            'L3': '#0080ff',
-            'L4': '#ff0055',
-            'L5': '#ffaa00',
-            'L6': '#00bb77'
+            'L3': '#0077b6', // Bleu
+            'L4': '#d90429', // Rouge
+            'L5': '#f77f00', // Orange
+            'L6': '#2a9d8f'  // Vert
         };
 
         L.geoJSON(data, {
             style: function (feature) {
                 const p = feature.properties || {};
                 const ref = p.ref || "";
-                const isTram = p.route === 'tram';
+                const isTram = p.route === 'tram' || ['T1', 'T2'].includes(ref);
+                const isLiane = ['L3', 'L4', 'L5', 'L6'].includes(ref) || p.category === 'liane';
 
                 // Style Tramway
                 if (isTram) {
-                    return { color: '#00e5ff', weight: 5, opacity: 0.9 };
+                    return { color: '#00b4d8', weight: 5, opacity: 0.95 };
                 }
-                // Style Lianes (Lignes majeures)
-                if (lianesColors[ref]) {
-                    return { color: lianesColors[ref], weight: 4, opacity: 0.85 };
+                // Style Lianes majeures
+                if (isLiane) {
+                    const color = lianesColors[ref] || '#0077b6';
+                    return { color: color, weight: 4, opacity: 0.9 };
                 }
                 // Style Autres lignes de bus
-                return { color: '#8e8e93', weight: 2.5, opacity: 0.6, dashArray: '4, 4' };
+                return { color: '#6c757d', weight: 2.5, opacity: 0.65, dashArray: '4, 4' };
             },
             onEachFeature: function (feature, layer) {
                 const p = feature.properties || {};
                 const ref = p.ref ? `[${p.ref}] ` : '';
-                const name = p.name || "Ligne";
+                const name = p.name || "Ligne TC";
                 layer.bindTooltip(`<b>${ref}${name}</b>`, { sticky: true });
 
-                if (p.route === 'tram') {
+                const isTram = p.route === 'tram' || ['T1', 'T2'].includes(p.ref);
+                const isLiane = ['L3', 'L4', 'L5', 'L6'].includes(p.ref) || p.category === 'liane';
+
+                if (isTram) {
                     tramLayer.addLayer(layer);
-                } else if (p.ref && ['L3', 'L4', 'L5', 'L6'].includes(p.ref)) {
+                } else if (isLiane) {
                     busLianesLayer.addLayer(layer);
                 } else {
                     busAutresLayer.addLayer(layer);
                 }
             }
         });
-
-        // Par défaut, afficher les trams et les lignes fortes
-        tramLayer.addTo(map);
-        busLianesLayer.addTo(map);
     })
-    .catch(err => console.warn("Erreur GeoJSON:", err));
+    .catch(err => {
+        // En cas d'erreur ou d'absence de données, le fond OpenStreetMap et les outils restent 100% actifs
+        console.warn("Notice TC : données non disponibles, carte OSM active.", err);
+    });
 
-// Sélecteur de calques affinable pour régulation
-const overlays = {
-    "Tramways (T1, T2)": tramLayer,
-    "Lianes majeures (L3 à L6)": busLianesLayer,
-    "Autres lignes de bus": busAutresLayer
-};
-L.control.layers(null, overlays, { position: 'topleft', collapsed: false }).addTo(map);
+// 6. Outils de tracé Leaflet-Geoman pour marquer les manifestations en direct
+let currentColor = '#ff3b30'; // Par défaut : rouge (bloqué)
+let selectedLayer = null;      // Forme sélectionnée
 
-// 5. Outils de tracé Leaflet-Geoman
-let currentColor = '#ff3b30';
-let selectedLayer = null; // Mémorise la forme actuellement sélectionnée
-
+// Initialisation des outils de dessin Geoman
 map.pm.addControls({
     position: 'topleft',
     drawMarker: true,
@@ -103,84 +123,115 @@ map.pm.addControls({
     removalMode: true
 });
 
-// Appliquer la couleur aux futurs tracés
+// Appliquer la couleur et le style aux tracés
 function applyDrawStyle() {
     map.pm.setPathOptions({
         color: currentColor,
         fillColor: currentColor,
         fillOpacity: 0.45,
-        weight: 8
+        weight: 6
     });
 }
 applyDrawStyle();
 
-// Clic sur un bouton de couleur du HUD
+// Clic sur un bouton de couleur du HUD (Rouge / Orange / Vert)
 function setDrawColor(color, btn) {
     currentColor = color;
     applyDrawStyle();
 
-    // Met en valeur le bouton actif dans le menu
     document.querySelectorAll('.btn-color').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    if (btn) btn.classList.add('active');
 
-    // SI une ligne/zone est déjà sélectionnée sur la carte, on change sa couleur immédiatement !
+    // Si une forme est actuellement sélectionnée, mise à jour immédiate de sa couleur
     if (selectedLayer) {
-        selectedLayer.setStyle({
-            color: currentColor,
-            fillColor: currentColor
-        });
+        if (selectedLayer.setStyle) {
+            selectedLayer.setStyle({
+                color: currentColor,
+                fillColor: currentColor
+            });
+        }
+        selectedLayer._drawColor = currentColor;
     }
 }
 
-// Quand une nouvelle forme est créée
+// Gestion de la création d'une forme Geoman
 map.on('pm:create', function (e) {
     const layer = e.layer;
     layer._manualImpact = true;
+    layer._drawColor = currentColor;
+    layer._createdAt = new Date().toISOString();
 
-    // Appliquer le style au tracé qui vient d'être fait
-    layer.setStyle({
-        color: currentColor,
-        fillColor: currentColor,
-        fillOpacity: 0.45,
-        weight: 8
-    });
+    if (layer.setStyle) {
+        layer.setStyle({
+            color: currentColor,
+            fillColor: currentColor,
+            fillOpacity: 0.45,
+            weight: 6
+        });
+    }
 
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    layer.bindPopup(`<b>Zone impactée</b><br>Signalée à: ${timeString}`);
+    let label = "Axe impacté";
+    if (currentColor === '#ff3b30') label = "🔴 Axe bloqué / Tête de cortège";
+    else if (currentColor === '#ff9500') label = "🟠 Ralentissement / Risque fort";
+    else if (currentColor === '#34c759') label = "🟢 Axe libéré / Voie fluide";
 
-    // Clic sur le tracé pour le sélectionner et pouvoir changer sa couleur via les boutons
-    layer.on('click', function () {
+    layer.bindPopup(`<b>${label}</b><br><small>Signalé à: ${timeString}</small>`);
+
+    // Ajout systématique au calque de manifestation (pour pouvoir le cocher/décocher)
+    manifestationLayer.addLayer(layer);
+
+    // Clic pour sélectionner la forme
+    layer.on('click', function (ev) {
+        L.DomEvent.stopPropagation(ev);
         selectedLayer = layer;
     });
 });
 
-// Réinitialiser la sélection si on clique dans le vide sur la carte
+// Réinitialiser la sélection si on clique sur la carte
 map.on('click', function () {
     selectedLayer = null;
 });
 
+// Effacer tous les tracés
 function clearAllShapes() {
     if (confirm("Supprimer tous les tracés de manifestation en cours ?")) {
-        map.eachLayer(layer => {
-            if (layer._drawnByGeoman || layer._manualImpact) {
-                map.removeLayer(layer);
-            }
-        });
+        manifestationLayer.clearLayers();
         selectedLayer = null;
     }
 }
 
+// Exporter les données de la manifestation
 function exportSituation() {
-    const drawnData = [];
-    map.eachLayer(layer => {
-        if ((layer._drawnByGeoman || layer._manualImpact) && layer.toGeoJSON) {
-            drawnData.push(layer.toGeoJSON());
+    const features = [];
+    manifestationLayer.eachLayer(layer => {
+        if (layer.toGeoJSON) {
+            const geojson = layer.toGeoJSON();
+            geojson.properties = geojson.properties || {};
+            geojson.properties.color = layer._drawColor || currentColor;
+            geojson.properties.timestamp = layer._createdAt || new Date().toISOString();
+            features.push(geojson);
         }
     });
-    const blob = new Blob([JSON.stringify(drawnData, null, 2)], { type: "application/json" });
+
+    const exportData = {
+        type: "FeatureCollection",
+        timestamp: new Date().toISOString(),
+        features: features
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `situation_besancon_${Date.now()}.json`;
     a.click();
 }
+
+// Ajustement réactif de la carte Leaflet
+window.addEventListener('resize', () => {
+    map.invalidateSize();
+});
+setTimeout(() => {
+    map.invalidateSize();
+}, 250);
