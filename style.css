@@ -226,3 +226,11 @@ html {
 .tiles-grayscale .leaflet-tile {
     filter: grayscale(100%) contrast(110%) brightness(96%) !important;
 }
+
+/* Tracé Travaux 10px : Vraies hachures diagonales (anti-effet saucisse, bords nets) */
+.travaux-zebra-line {
+    stroke: url(#travaux-pattern) #ffe500 !important;
+    stroke-linecap: butt !important;
+    stroke-linejoin: miter !important;
+    filter: drop-shadow(0 0 1px #000);
+}

@@ -21,19 +21,19 @@ const COULEURS_LIGNES = {
 
 // =========================================================================
 // 🗺️ 2. BORNES STRICTES AU RÉSEAU URBAIN DE BESANÇON
-// Dézoomage limité strictement au bassin urbain (sans boutons + et -)
+// Dézoomage limité strictement au bassin urbain (rapproché d'un cran : minZoom 14)
 // =========================================================================
 const boundsBesanconUrbain = L.latLngBounds(
-    [47.200, 5.940], // Sud-Ouest (Châteaufarine / Velotte)
-    [47.295, 6.075]  // Nord-Est (Chalezeule / Orchamps / Valentin)
+    [47.205, 5.950], // Sud-Ouest (Châteaufarine / Velotte)
+    [47.285, 6.070]  // Nord-Est (Chalezeule / Orchamps / Valentin)
 );
 
 const map = L.map('map', {
     center: [47.243, 6.024], // Centre-ville (Boucle)
     zoom: 14,
-    minZoom: 13,             // Limite stricte en dézoomant : uniquement l'urbain
+    minZoom: 14,             // Rapproché d'un cran (stoppe au niveau quartier/urbain)
     maxZoom: 19,
-    zoomControl: false,      // Supprime les boutons + et - (souris utilisée)
+    zoomControl: false,      // Boutons + et - supprimés (souris utilisée)
     maxBounds: boundsBesanconUrbain,
     maxBoundsViscosity: 1.0  // Verrouille strictement le défilement dans Besançon
 });
@@ -185,7 +185,6 @@ fetch('data/reseau_tc.geojson')
                 if (dirLayers[key]) {
                     dirLayers[key].addLayer(layer);
                 } else {
-                    // Fallback si variation de destination
                     const foundKey = Object.keys(dirLayers).find(k => k.startsWith(`${ref}_`));
                     if (foundKey) dirLayers[foundKey].addLayer(layer);
                 }
@@ -197,23 +196,58 @@ fetch('data/reseau_tc.geojson')
     });
 
 // =========================================================================
-// 🚨 6. MODES DE TRACÉ : CORTÈGE ROUGE 10PX & TRAVAUX NOIR/JAUNE 10PX
+// 🚨 6. TRACÉS HAUTE PRÉCISION : CORTÈGE 10PX & VRAIS HACHURÉS TRAVAUX 10PX
 // =========================================================================
 let currentDrawMode = 'cortege'; // 'cortege' ou 'travaux'
 
-// Configuration de Leaflet-Geoman (rotate et edit layers masqués)
+// Injection du motif SVG de vraies hachures diagonales à 45° pour les travaux
+function initTravauxPattern() {
+    const svg = document.querySelector('.leaflet-pane svg');
+    if (!svg) {
+        setTimeout(initTravauxPattern, 300);
+        return;
+    }
+    let defs = svg.querySelector('defs');
+    if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+    }
+    if (!document.getElementById('travaux-pattern')) {
+        const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+        pattern.setAttribute('id', 'travaux-pattern');
+        pattern.setAttribute('width', '16');
+        pattern.setAttribute('height', '16');
+        pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+        pattern.setAttribute('patternTransform', 'rotate(45)');
+        pattern.innerHTML = `
+            <rect width="16" height="16" fill="#000000" />
+            <rect width="8" height="16" fill="#ffe500" />
+        `;
+        defs.appendChild(pattern);
+    }
+}
+setTimeout(initTravauxPattern, 400);
+
+// Configuration Leaflet-Geoman (rotate et edit layers masqués)
 map.pm.addControls({
     position: 'topleft',
-    drawPolyline: true,    // 📏 Tracé du parcours
+    drawPolyline: true,    // 📏 Tracé
     drawMarker: true,      // 📍 Marqueur
     drawPolygon: false,    // ❌ Masqué
     drawCircle: false,     // ❌ Masqué
     drawRectangle: false,  // ❌ Masqué
-    editMode: false,       // ❌ Masqué (Edit Layers caché)
-    rotateMode: false,     // ❌ Masqué (Rotate caché)
+    editMode: false,       // ❌ Masqué
+    rotateMode: false,     // ❌ Masqué
     dragMode: false,       // ❌ Masqué
     cutPolygon: false,     // ❌ Masqué
     removalMode: true      // 🗑️ Poubelle pour supprimer au clic
+});
+
+// Nettoyage synchronisé des sur-couches travaux si suppression par l'outil corbeille
+map.on('pm:remove', function (e) {
+    if (e.layer && e.layer._travauxStripe) {
+        impactLayer.removeLayer(e.layer._travauxStripe);
+    }
 });
 
 // Appliquer le style au tracé actif
@@ -224,16 +258,20 @@ function applyDrawStyle() {
             fillColor: '#ff3b30',
             fillOpacity: 0.45,
             weight: 10,
-            dashArray: null
+            dashArray: null,
+            lineCap: 'round',
+            lineJoin: 'round'
         });
     } else {
-        // Mode Travaux : 10px pointillé jaune
+        // Mode Travaux : Bords carrés stricts (lineCap: 'butt' -> aucun effet saucisse)
         map.pm.setPathOptions({
             color: '#ffe500',
             fillColor: '#ffe500',
             fillOpacity: 0.45,
             weight: 10,
-            dashArray: '12, 12'
+            dashArray: '16, 16',
+            lineCap: 'butt',
+            lineJoin: 'miter'
         });
     }
 }
@@ -259,33 +297,41 @@ map.on('pm:create', function (e) {
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     if (currentDrawMode === 'cortege') {
-        // Tracé rouge 10px solide
+        // Tracé rouge solide 10px
         if (layer.setStyle) {
             layer.setStyle({
                 color: '#ff3b30',
                 fillColor: '#ff3b30',
                 fillOpacity: 0.45,
                 weight: 10,
-                dashArray: null
+                dashArray: null,
+                lineCap: 'round',
+                lineJoin: 'round'
             });
         }
-        layer.bindPopup(`<b>🔴 Cortège / Axe bloqué</b><br><small>Signalé à: ${timeString}</small>`);
+        layer.bindPopup(`<b>🔴 Cortège / Axe bloqué (10px)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     } else {
-        // Tracé Travaux 10px : fond noir + hachuré jaune (effet ruban de chantier)
+        // Tracé Travaux 10px : Vrais hachurés nets carrés (lineCap: 'butt' strict, sans arrondi)
         if (layer.setStyle) {
             layer.setStyle({
                 color: '#000000',
-                weight: 12,
-                opacity: 0.95
+                weight: 10,
+                opacity: 1.0,
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                className: 'travaux-zebra-line'
             });
 
             if (layer.getLatLngs) {
+                // Hachures jaunes rectangulaires nettes
                 const yellowStripe = L.polyline(layer.getLatLngs(), {
                     color: '#ffe500',
                     weight: 10,
-                    dashArray: '12, 12',
-                    opacity: 1.0
+                    dashArray: '16, 16',
+                    opacity: 1.0,
+                    lineCap: 'butt',
+                    lineJoin: 'miter'
                 });
                 layer._travauxStripe = yellowStripe;
                 impactLayer.addLayer(yellowStripe);
