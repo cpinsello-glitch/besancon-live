@@ -161,22 +161,25 @@ const LIGNES_CONFIG = [
 
 // =========================================================================
 // 🗺️ INITIALISATION CARTE LEAFLET
-// Cadrage étendu au Nord pour voir Espace Valentin et Châtillon-le-Duc sous le menu
 // =========================================================================
 const boundsBesanconUrbain = L.latLngBounds(
-    [47.195, 5.925], // Sud-Ouest
-    [47.320, 6.085]  // Nord-Est étendu (englobe Châtillon-le-Duc et École-Valentin)
+    [47.195, 5.925],
+    [47.320, 6.085]
 );
 
 const map = L.map('map', {
-    center: [47.258, 6.020], // Centré légèrement au nord pour dégager Châtillon-le-Duc sous le menu
+    center: [47.258, 6.020],
     zoom: 14,
-    minZoom: 13,             // Permet de dézoomer suffisamment pour voir le terminus nord et Châtillon
+    minZoom: 13,
     maxZoom: 19,
-    zoomControl: false,      // Sans boutons + et -
+    zoomControl: false,
     maxBounds: boundsBesanconUrbain,
     maxBoundsViscosity: 0.9
 });
+
+// Plan personnalisé avec z-index élevé pour afficher les points et terminus au-dessus des tracés
+map.createPane('stopsPane');
+map.getPane('stopsPane').style.zIndex = 650;
 
 // =========================================================================
 // 🌍 GESTION DES FONDS DE PLAN (STANDART / ÉPURÉ)
@@ -228,7 +231,6 @@ LIGNES_CONFIG.forEach(cfg => {
     itemEl.className = 'dock-item';
     itemEl.id = `dock-item-${cfg.id}`;
 
-    // Carré de ligne 60x60px
     const btnEl = document.createElement('button');
     btnEl.type = 'button';
     btnEl.className = 'dock-btn';
@@ -243,7 +245,6 @@ LIGNES_CONFIG.forEach(cfg => {
         toggleLineAll(cfg.id);
     });
 
-    // Sous-menu blanc quasi-opaque
     const submenuEl = document.createElement('div');
     submenuEl.className = 'dock-submenu';
     submenuEl.id = `submenu-${cfg.id}`;
@@ -337,102 +338,137 @@ function updateLineButtonState(lineId) {
     }
 }
 
+// Fonction de calcul de proximité d'un arrêt avec les coordonnées d'un tracé
+function isStopNearCoords(stopLon, stopLat, coordsList, threshold = 0.0012) {
+    const threshSq = threshold * threshold;
+    for (let i = 0; i < coordsList.length; i++) {
+        const dx = stopLon - coordsList[i][0];
+        const dy = stopLat - coordsList[i][1];
+        if (dx * dx + dy * dy < threshSq) return true;
+    }
+    return false;
+}
+
 // =========================================================================
-// 📥 CHARGEMENT GEOJSON DU RÉSEAU TC
+// 📥 CHARGEMENT SIMULTANÉ LIGNES TC & ARRÊTS
 // =========================================================================
-fetch('data/reseau_tc.geojson')
-    .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        return res.json();
-    })
-    .then(data => {
-        if (!data || !Array.isArray(data.features)) return;
+Promise.all([
+    fetch('data/reseau_tc.geojson').then(r => r.json()),
+    fetch('data/arrets.geojson').then(r => r.json())
+]).then(([tcData, arretsData]) => {
+    if (!tcData || !Array.isArray(tcData.features)) return;
+    const allStops = arretsData && Array.isArray(arretsData.features) ? arretsData.features : [];
 
-        L.geoJSON(data, {
-            style: function (feature) {
-                const p = feature.properties || {};
-                let ref = p.ref || "";
-                if (ref === '6') ref = 'L6';
-                if (ref === 'Citadelle') ref = 'CITA';
-                if (ref === 'Plan B' || ref === 'Plan B Tram') ref = 'PlanB';
+    tcData.features.forEach(feature => {
+        const p = feature.properties || {};
+        let ref = p.ref || "";
+        if (ref === '6') ref = 'L6';
+        if (ref === 'Citadelle') ref = 'CITA';
+        if (ref === 'Plan B' || ref === 'Plan B Tram') ref = 'PlanB';
 
-                const cfg = LIGNES_CONFIG.find(l => l.ref === ref);
-                const color = cfg ? cfg.color : '#8e8e93';
-                const isTram = ['T1', 'T2'].includes(ref);
-                const isNavette = ['CITA', 'PlanB'].includes(ref);
+        const to = p.to || "";
+        const cfg = LIGNES_CONFIG.find(l => l.ref === ref);
+        const color = cfg ? cfg.color : '#8e8e93';
+        const isTram = ['T1', 'T2'].includes(ref);
+        const isNavette = ['CITA', 'PlanB'].includes(ref);
 
-                return {
-                    color: color,
-                    weight: isTram ? 5 : 4,
-                    opacity: 0.92,
-                    dashArray: isNavette ? '6, 6' : null
-                };
-            },
-            onEachFeature: function (feature, layer) {
-                const p = feature.properties || {};
-                let ref = p.ref || "";
-                if (ref === '6') ref = 'L6';
-                if (ref === 'Citadelle') ref = 'CITA';
-                if (ref === 'Plan B' || ref === 'Plan B Tram') ref = 'PlanB';
+        const key = `${ref}_${to}`;
+        const targetLayer = dirLayers[key] || (function () {
+            const foundKey = Object.keys(dirLayers).find(k => k.startsWith(`${ref}_`));
+            return foundKey ? dirLayers[foundKey] : null;
+        })();
 
-                const to = p.to || "";
-                layer.bindTooltip(`<b>[${ref}] ➔ ${to}</b><br><small>${p.name || ''}</small>`, { sticky: true });
+        if (!targetLayer) return;
 
-                const key = `${ref}_${to}`;
-                if (dirLayers[key]) {
-                    dirLayers[key].addLayer(layer);
-                } else {
-                    const foundKey = Object.keys(dirLayers).find(k => k.startsWith(`${ref}_`));
-                    if (foundKey) dirLayers[foundKey].addLayer(layer);
+        // 1. TRACÉ DE LA LIGNE (SANS BULLE AU SURVOL DE LA LIGNE)
+        const lineLayer = L.geoJSON(feature, {
+            style: {
+                color: color,
+                weight: isTram ? 5 : 4,
+                opacity: 0.92,
+                dashArray: isNavette ? '6, 6' : null
+            }
+        });
+        targetLayer.addLayer(lineLayer);
+
+        // Aplatissement des coordonnées du tracé pour associer les arrêts
+        const lineCoords = [];
+        if (feature.geometry.type === 'LineString') {
+            feature.geometry.coordinates.forEach(c => lineCoords.push(c));
+        } else if (feature.geometry.type === 'MultiLineString') {
+            feature.geometry.coordinates.forEach(subLine => {
+                subLine.forEach(c => lineCoords.push(c));
+            });
+        }
+
+        // 2. MATÉRIALISATION DES ARRÊTS DE LA LIGNE (ROND 13PX COULEUR LIGNE SANS CONTOUR)
+        allStops.forEach(st => {
+            const linesStr = st.properties.lines || "";
+            const servesLine = linesStr.includes(ref) || (ref === 'PlanB' && linesStr.includes('T1'));
+
+            if (servesLine) {
+                const sLon = st.geometry.coordinates[0];
+                const sLat = st.geometry.coordinates[1];
+
+                // Vérifie si l'arrêt se situe sur le tracé de cette direction
+                if (isStopNearCoords(sLon, sLat, lineCoords)) {
+                    const stopMarker = L.circleMarker([sLat, sLon], {
+                        radius: 6.5,          // Diamètre 13px
+                        fillColor: color,     // Couleur de la ligne
+                        stroke: false,        // Sans contour
+                        fillOpacity: 1.0,
+                        pane: 'stopsPane'     // Visible par-dessus le tracé de la ligne
+                    });
+
+                    // Nom de station visible au survol en noir 12 (sans bold) avec fond blanc transparent
+                    stopMarker.bindTooltip(st.properties.name || "Arrêt", {
+                        direction: 'top',
+                        offset: [0, -6],
+                        className: 'station-tooltip',
+                        sticky: true
+                    });
+
+                    targetLayer.addLayer(stopMarker);
                 }
             }
         });
-    })
-    .catch(err => {
-        console.warn("Information : Chargement TC non disponible :", err);
-    });
 
-// =========================================================================
-// 📍 MATÉRIALISATION DES ARRÊTS (POINTS BLANCS VISIBLES + TOOLTIP NOIR 12 SANS BOLD)
-// =========================================================================
-const stationsLayer = L.layerGroup().addTo(map);
+        // 3. BADGE AU TERMINUS AVEC LE NOM (STYLE DU MENU : ▶ TERMINUS)
+        if (lineCoords.length > 0) {
+            const destObj = cfg ? cfg.destinations.find(d => d.to === to) : null;
+            const destLabel = destObj ? destObj.label : to;
 
-fetch('data/arrets.geojson')
-    .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-    })
-    .then(data => {
-        if (!data || !Array.isArray(data.features)) return;
+            // Détection de l'extrémité terminus (dernier point ou premier selon l'orientation)
+            let termCoord = lineCoords[lineCoords.length - 1];
 
-        data.features.forEach(f => {
-            const coords = f.geometry.coordinates; // [lon, lat]
-            const p = f.properties || {};
-            const stopName = p.name || "Arrêt";
-
-            // Point rond un peu plus gros que le trait (rayon 5.5px, bord noir net)
-            const marker = L.circleMarker([coords[1], coords[0]], {
-                radius: 5.5,
-                fillColor: '#ffffff',
-                color: '#1a1a1a',
-                weight: 2,
-                fillOpacity: 1.0
+            // Recherche si un arrêt correspond exactement au nom du terminus pour un ancrage parfait
+            const termStop = allStops.find(st => {
+                const sName = (st.properties.name || "").toLowerCase();
+                const dName = to.toLowerCase();
+                return sName.includes(dName) || dName.includes(sName);
             });
 
-            // Nom de station visible au survol en noir 12 (sans bold) avec fond blanc transparent
-            marker.bindTooltip(stopName, {
-                direction: 'top',
-                offset: [0, -6],
-                className: 'station-tooltip',
-                sticky: true
+            if (termStop) {
+                termCoord = [termStop.geometry.coordinates[0], termStop.geometry.coordinates[1]];
+            }
+
+            const terminusIcon = L.divIcon({
+                className: 'leaflet-terminus-icon',
+                html: `<div class="terminus-badge" style="border-color:${color};"><span class="terminus-arrow" style="color:${color};">▶</span> ${destLabel}</div>`,
+                iconAnchor: [0, 0]
             });
 
-            stationsLayer.addLayer(marker);
-        });
-    })
-    .catch(err => {
-        console.warn("Notice arrêts :", err);
+            const terminusMarker = L.marker([termCoord[1], termCoord[0]], {
+                icon: terminusIcon,
+                pane: 'stopsPane'
+            });
+
+            targetLayer.addLayer(terminusMarker);
+        }
     });
+}).catch(err => {
+    console.warn("Erreur chargement données TC et arrêts :", err);
+});
 
 // =========================================================================
 // 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX HACHURÉ SANS ARRONDI)
