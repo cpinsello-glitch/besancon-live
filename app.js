@@ -1,45 +1,184 @@
 // =========================================================================
-// 🎨 1. CONFIGURATION DES COULEURS OFFICIELLES PAR LIGNE
-// Modifiez ici directement le code hexadécimal (#RRGGBB) de chaque ligne :
+// 🍎 CONFIGURATION DES LIGNES (Menu Apple haut)
+// Modifiez ici directement les labels, couleurs (#hex) et destinations :
 // =========================================================================
-const COULEURS_LIGNES = {
-    'T1':    '#00A5C2',
-    'T2':    '#006D78',
-    'L3':    '#006AB3',
-    'L4':    '#E2001A',
-    'L5':    '#1FA22E',
-    'L6':    '#FFE500',
-    '7':     '#A74C21',
-    '8':     '#00396B',
-    '9':     '#F29400',
-    '10':    '#CECB00',
-    '11':    '#C592BE',
-    '12':    '#7BC6BC',
-    'CITA':  '#EA5B0C',
-    'PlanB': '#1E191A'
-};
+const LIGNES_CONFIG = [
+    {
+        id: 'T1',
+        label: 'T1',
+        ref: 'T1',
+        color: '#00A5C2',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Chalezeule', label: 'CHALEZEULE' },
+            { to: 'Hauts du Chazal', label: 'HAUTS DU CHAZAL' }
+        ]
+    },
+    {
+        id: 'T2',
+        label: 'T2',
+        ref: 'T2',
+        color: '#006D78',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Gare Viotte', label: 'GARE VIOTTE' },
+            { to: 'Hauts du Chazal', label: 'HAUT DU CHAZAL' }
+        ]
+    },
+    {
+        id: 'L3',
+        label: '3',
+        ref: 'L3',
+        color: '#006AB3',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: '8 Septembre', label: '8 SEPTEMBRE' },
+            { to: 'Temis', label: 'TEMIS' }
+        ]
+    },
+    {
+        id: 'L4',
+        label: '4',
+        ref: 'L4',
+        color: '#E2001A',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Châteaufarine', label: 'CHÂTEAUFARINE' },
+            { to: 'Pôle Orchamps', label: 'PÔLE ORCHAMPS' }
+        ]
+    },
+    {
+        id: 'L5',
+        label: '5',
+        ref: 'L5',
+        color: '#1FA22E',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Bregille', label: 'BREGILLE' },
+            { to: 'Saint-Claude', label: 'SAINT-CLAUDE' }
+        ]
+    },
+    {
+        id: 'L6',
+        label: '6',
+        ref: 'L6',
+        color: '#FFE500',
+        textColor: '#1A1A1A', // Texte sombre pour fond jaune
+        destinations: [
+            { to: 'Orchamps', label: 'ORCHAMPS' },
+            { to: 'Founottes', label: 'FOUNOTTES' }
+        ]
+    },
+    {
+        id: '7',
+        label: '7',
+        ref: '7',
+        color: '#A74C21',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Palente Espace Ind.', label: 'PALENT ZI' },
+            { to: 'Hauts du Chazal', label: 'HAUT DU CHAZAL' }
+        ]
+    },
+    {
+        id: '8',
+        label: '8',
+        ref: '8',
+        color: '#00396B',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Espace Valentin', label: 'ESPACE VALENTIN' },
+            { to: 'Battant', label: 'BATTANT' }
+        ]
+    },
+    {
+        id: '9',
+        label: '9',
+        ref: '9',
+        color: '#F29400',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Tilleroyes', label: 'TILLEROYES' },
+            { to: 'Velotte', label: 'VELOTTE' }
+        ]
+    },
+    {
+        id: '10',
+        label: '10',
+        ref: '10',
+        color: '#CECB00',
+        textColor: '#1A1A1A', // Texte sombre pour vert lime
+        destinations: [
+            { to: 'Chaffanjon', label: 'CHAFFANJON' },
+            { to: 'CHU Minjoz', label: 'CHU MINJOZ' }
+        ]
+    },
+    {
+        id: '11',
+        label: '11',
+        ref: '11',
+        color: '#C592BE',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Combe Saragosse', label: 'COMBE SARAGOSSE' },
+            { to: 'Rivotte', label: 'RIVOTTE' }
+        ]
+    },
+    {
+        id: '12',
+        label: '12',
+        ref: '12',
+        color: '#7BC6BC',
+        textColor: '#1A1A1A',
+        destinations: [
+            { to: 'Prés de Vaux', label: 'PRÉS DE VAUX' },
+            { to: 'Temis', label: 'TEMIS' }
+        ]
+    },
+    {
+        id: 'CITA',
+        label: 'CI',
+        ref: 'CITA',
+        color: '#EA5B0C',
+        textColor: '#FFFFFF',
+        destinations: [
+            { to: 'Citadelle', label: 'CITADELLE' },
+            { to: 'Chamars', label: 'CHAMARS' }
+        ]
+    },
+    {
+        id: 'PlanB',
+        label: 'PB',
+        ref: 'PlanB',
+        color: '#1E191A',
+        textColor: '#FFE500', // Jaune sur fond noir
+        destinations: [
+            { to: 'Chalezeule', label: 'CHALEZEULE' },
+            { to: 'Hauts du Chazal', label: 'HAUT DU CHAZAL' }
+        ]
+    }
+];
 
 // =========================================================================
-// 🗺️ 2. BORNES STRICTES AU RÉSEAU URBAIN DE BESANÇON
-// Dézoomage limité strictement au bassin urbain (rapproché d'un cran : minZoom 14)
+// 🗺️ INITIALISATION CARTE LEAFLET
 // =========================================================================
 const boundsBesanconUrbain = L.latLngBounds(
-    [47.205, 5.950], // Sud-Ouest (Châteaufarine / Velotte)
-    [47.285, 6.070]  // Nord-Est (Chalezeule / Orchamps / Valentin)
+    [47.205, 5.950],
+    [47.285, 6.070]
 );
 
 const map = L.map('map', {
-    center: [47.243, 6.024], // Centre-ville (Boucle)
+    center: [47.243, 6.024], // Centre-ville Besançon
     zoom: 14,
-    minZoom: 14,             // Rapproché d'un cran (stoppe au niveau quartier/urbain)
+    minZoom: 14,             // Rapproché d'un cran
     maxZoom: 19,
-    zoomControl: false,      // Boutons + et - supprimés (souris utilisée)
+    zoomControl: false,      // Sans boutons + et -
     maxBounds: boundsBesanconUrbain,
-    maxBoundsViscosity: 1.0  // Verrouille strictement le défilement dans Besançon
+    maxBoundsViscosity: 1.0
 });
 
 // =========================================================================
-// 🌍 3. FONDS DE PLAN : STANDARD & ÉPURÉ (100% sans clé API)
+// 🌍 GESTION DES FONDS DE PLAN (STANDART / ÉPURÉ)
 // =========================================================================
 const fondStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
@@ -52,94 +191,162 @@ const fondEpure = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', 
     className: 'tiles-grayscale'
 });
 
-// Fond par défaut : Standard
+// Défaut : Standard
 fondStandard.addTo(map);
 
-const baseMaps = {
-    "Standard": fondStandard,
-    "Épuré": fondEpure
-};
-
-// =========================================================================
-// 🚌 4. CALQUES DISTINCTS PAR DIRECTION (ALLER & RETOUR)
-// =========================================================================
-const impactLayer = L.layerGroup().addTo(map);
-
-// Définition ordonnée des 2 directions par ligne
-const directionsConfig = [
-    // T1
-    { ref: 'T1', to: 'Chalezeule', label: 'T1 ➔ Chalezeule' },
-    { ref: 'T1', to: 'Hauts du Chazal', label: 'T1 ➔ Hauts du Chazal' },
-    // T2
-    { ref: 'T2', to: 'Gare Viotte', label: 'T2 ➔ Gare Viotte' },
-    { ref: 'T2', to: 'Hauts du Chazal', label: 'T2 ➔ Hauts du Chazal' },
-    // L3
-    { ref: 'L3', to: '8 Septembre', label: 'L3 ➔ 8 Septembre' },
-    { ref: 'L3', to: 'Temis', label: 'L3 ➔ Temis' },
-    // L4
-    { ref: 'L4', to: 'Châteaufarine', label: 'L4 ➔ Châteaufarine' },
-    { ref: 'L4', to: 'Pôle Orchamps', label: 'L4 ➔ Pôle Orchamps' },
-    // L5
-    { ref: 'L5', to: 'Bregille', label: 'L5 ➔ Bregille' },
-    { ref: 'L5', to: 'Saint-Claude', label: 'L5 ➔ Saint-Claude' },
-    // L6
-    { ref: 'L6', to: 'Orchamps', label: 'L6 ➔ Orchamps' },
-    { ref: 'L6', to: 'Founottes', label: 'L6 ➔ Founottes' },
-    // 7
-    { ref: '7', to: 'Palente Espace Ind.', label: '7 ➔ Palente Espace Ind.' },
-    { ref: '7', to: 'Hauts du Chazal', label: '7 ➔ Hauts du Chazal' },
-    // 8
-    { ref: '8', to: 'Espace Valentin', label: '8 ➔ Espace Valentin' },
-    { ref: '8', to: 'Battant', label: '8 ➔ Battant' },
-    // 9
-    { ref: '9', to: 'Tilleroyes', label: '9 ➔ Tilleroyes' },
-    { ref: '9', to: 'Velotte', label: '9 ➔ Velotte' },
-    // 10
-    { ref: '10', to: 'Chaffanjon', label: '10 ➔ Chaffanjon' },
-    { ref: '10', to: 'CHU Minjoz', label: '10 ➔ CHU Minjoz' },
-    // 11
-    { ref: '11', to: 'Combe Saragosse', label: '11 ➔ Combe Saragosse' },
-    { ref: '11', to: 'Rivotte', label: '11 ➔ Rivotte' },
-    // 12
-    { ref: '12', to: 'Prés de Vaux', label: '12 ➔ Prés de Vaux' },
-    { ref: '12', to: 'Temis', label: '12 ➔ Temis' },
-    // CITA
-    { ref: 'CITA', to: 'Citadelle', label: 'CITA ➔ Citadelle' },
-    { ref: 'CITA', to: 'Chamars', label: 'CITA ➔ Chamars' },
-    // PlanB
-    { ref: 'PlanB', to: 'Chalezeule', label: 'PlanB ➔ Chalezeule' },
-    { ref: 'PlanB', to: 'Hauts du Chazal', label: 'PlanB ➔ Hauts du Chazal' }
-];
-
-// Création des groupes de calques
-const dirLayers = {};
-const overlays = {
-    "🔴 Cortège / 🚧 Travaux": impactLayer
-};
-
-function badge(color) {
-    return `<span class="legend-dot" style="background:${color}"></span>`;
+function setBasemap(type) {
+    if (type === 'standard') {
+        if (map.hasLayer(fondEpure)) map.removeLayer(fondEpure);
+        if (!map.hasLayer(fondStandard)) map.addLayer(fondStandard);
+        document.getElementById('btn-bm-standard').classList.add('active');
+        document.getElementById('btn-bm-epure').classList.remove('active');
+    } else {
+        if (map.hasLayer(fondStandard)) map.removeLayer(fondStandard);
+        if (!map.hasLayer(fondEpure)) map.addLayer(fondEpure);
+        document.getElementById('btn-bm-epure').classList.add('active');
+        document.getElementById('btn-bm-standard').classList.remove('active');
+    }
 }
 
-directionsConfig.forEach(item => {
-    const key = `${item.ref}_${item.to}`;
-    const layer = L.layerGroup().addTo(map);
-    dirLayers[key] = layer;
+// =========================================================================
+// 🚌 GESTION DYNAMIQUE DU MENU DOCK APPLE & CALQUES
+// =========================================================================
+const impactLayer = L.layerGroup().addTo(map);
+const dirLayers = {};
 
-    const color = COULEURS_LIGNES[item.ref] || '#888';
-    const overlayLabel = `${badge(color)} <b>${item.ref}</b> <span class="dest-arrow">➔</span> ${item.to}`;
-    overlays[overlayLabel] = layer;
+// Initialisation des calques par direction
+LIGNES_CONFIG.forEach(cfg => {
+    cfg.destinations.forEach(dest => {
+        const key = `${cfg.ref}_${dest.to}`;
+        dirLayers[key] = L.layerGroup().addTo(map);
+    });
 });
 
-// 📍 EMPLACEMENT DU TABLEAU DES LIGNES :
-// Modifiez 'topleft' par 'bottomleft', 'topright' ou 'bottomright' si vous souhaitez le déplacer
-L.control.layers(baseMaps, overlays, {
-    position: 'topleft',
-    collapsed: false
-}).addTo(map);
+// Construction dynamique du Dock HTML
+const dockContainer = document.getElementById('dock-lines');
+
+LIGNES_CONFIG.forEach(cfg => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'dock-item';
+    itemEl.id = `dock-item-${cfg.id}`;
+
+    // Carré de ligne 60x60px
+    const btnEl = document.createElement('button');
+    btnEl.type = 'button';
+    btnEl.className = 'dock-btn';
+    btnEl.id = `btn-line-${cfg.id}`;
+    btnEl.style.backgroundColor = cfg.color;
+    btnEl.style.color = cfg.textColor;
+    btnEl.textContent = cfg.label;
+    btnEl.title = `Ligne ${cfg.ref} - Cliquez pour tout activer/désactiver`;
+
+    // Clic sur le carré : bascule les 2 destinations d'un coup
+    btnEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleLineAll(cfg.id);
+    });
+
+    // Sous-menu translucide
+    const submenuEl = document.createElement('div');
+    submenuEl.className = 'dock-submenu';
+    submenuEl.id = `submenu-${cfg.id}`;
+
+    cfg.destinations.forEach(dest => {
+        const key = `${cfg.ref}_${dest.to}`;
+        const row = document.createElement('label');
+        row.className = 'dest-row';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.id = `chk-${cfg.id}-${dest.to.replace(/\s+/g, '_')}`;
+
+        checkbox.addEventListener('change', () => {
+            toggleDirection(key, checkbox.checked);
+            updateLineButtonState(cfg.id);
+        });
+
+        const arrowSpan = document.createElement('span');
+        arrowSpan.className = 'dest-arrow-icon';
+        arrowSpan.textContent = '▶';
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = dest.label;
+
+        row.appendChild(checkbox);
+        row.appendChild(arrowSpan);
+        row.appendChild(textSpan);
+        submenuEl.appendChild(row);
+    });
+
+    // Emplacement pour futures déviations
+    const deviationsContainer = document.createElement('div');
+    deviationsContainer.className = 'future-deviations-container';
+    deviationsContainer.id = `deviations-${cfg.id}`;
+    submenuEl.appendChild(deviationsContainer);
+
+    itemEl.appendChild(btnEl);
+    itemEl.appendChild(submenuEl);
+    dockContainer.appendChild(itemEl);
+});
+
+// Bascule d'une direction individuelle
+function toggleDirection(key, isVisible) {
+    const layer = dirLayers[key];
+    if (!layer) return;
+    if (isVisible) {
+        if (!map.hasLayer(layer)) map.addLayer(layer);
+    } else {
+        if (map.hasLayer(layer)) map.removeLayer(layer);
+    }
+}
+
+// Clic sur le carré : bascule l'ensemble des destinations de la ligne
+function toggleLineAll(lineId) {
+    const cfg = LIGNES_CONFIG.find(l => l.id === lineId);
+    if (!cfg) return;
+
+    // Vérifie si au moins une destination est active
+    const checkboxes = cfg.destinations.map(d => {
+        return document.getElementById(`chk-${cfg.id}-${d.to.replace(/\s+/g, '_')}`);
+    });
+
+    const anyActive = checkboxes.some(cb => cb && cb.checked);
+    const targetState = !anyActive; // Si au moins une est active, on éteint tout, sinon on allume tout
+
+    checkboxes.forEach((cb, idx) => {
+        if (cb) {
+            cb.checked = targetState;
+            const dest = cfg.destinations[idx];
+            toggleDirection(`${cfg.ref}_${dest.to}`, targetState);
+        }
+    });
+
+    updateLineButtonState(lineId);
+}
+
+// Mise à jour de l'apparence du bouton carré (opacité)
+function updateLineButtonState(lineId) {
+    const cfg = LIGNES_CONFIG.find(l => l.id === lineId);
+    if (!cfg) return;
+
+    const checkboxes = cfg.destinations.map(d => {
+        return document.getElementById(`chk-${cfg.id}-${d.to.replace(/\s+/g, '_')}`);
+    });
+
+    const anyChecked = checkboxes.some(cb => cb && cb.checked);
+    const btn = document.getElementById(`btn-line-${lineId}`);
+    if (btn) {
+        if (anyChecked) {
+            btn.classList.remove('is-inactive');
+        } else {
+            btn.classList.add('is-inactive');
+        }
+    }
+}
 
 // =========================================================================
-// 📥 5. CHARGEMENT ET DISTRIBUTION PRÉCISE ALLER / RETOUR
+// 📥 CHARGEMENT GEOJSON DU RÉSEAU TC
 // =========================================================================
 fetch('data/reseau_tc.geojson')
     .then(res => {
@@ -157,17 +364,15 @@ fetch('data/reseau_tc.geojson')
                 if (ref === 'Citadelle') ref = 'CITA';
                 if (ref === 'Plan B' || ref === 'Plan B Tram') ref = 'PlanB';
 
+                const cfg = LIGNES_CONFIG.find(l => l.ref === ref);
+                const color = cfg ? cfg.color : '#8e8e93';
                 const isTram = ['T1', 'T2'].includes(ref);
                 const isNavette = ['CITA', 'PlanB'].includes(ref);
 
-                const color = COULEURS_LIGNES[ref] || '#8e8e93';
-                const weight = isTram ? 5 : 4;
-                const opacity = 0.92;
-
                 return {
                     color: color,
-                    weight: weight,
-                    opacity: opacity,
+                    weight: isTram ? 5 : 4,
+                    opacity: 0.92,
                     dashArray: isNavette ? '6, 6' : null
                 };
             },
@@ -185,6 +390,7 @@ fetch('data/reseau_tc.geojson')
                 if (dirLayers[key]) {
                     dirLayers[key].addLayer(layer);
                 } else {
+                    // Recherche tolérante si légère variante d'orthographe
                     const foundKey = Object.keys(dirLayers).find(k => k.startsWith(`${ref}_`));
                     if (foundKey) dirLayers[foundKey].addLayer(layer);
                 }
@@ -196,11 +402,11 @@ fetch('data/reseau_tc.geojson')
     });
 
 // =========================================================================
-// 🚨 6. TRACÉS HAUTE PRÉCISION : CORTÈGE 10PX & VRAIS HACHURÉS TRAVAUX 10PX
+// 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX HACHURÉ SANS ARRONDI)
 // =========================================================================
 let currentDrawMode = 'cortege'; // 'cortege' ou 'travaux'
 
-// Injection du motif SVG de vraies hachures diagonales à 45° pour les travaux
+// Injection motif SVG hachures diagonales à 45°
 function initTravauxPattern() {
     const svg = document.querySelector('.leaflet-pane svg');
     if (!svg) {
@@ -228,7 +434,7 @@ function initTravauxPattern() {
 }
 setTimeout(initTravauxPattern, 400);
 
-// Configuration Leaflet-Geoman (rotate et edit layers masqués)
+// Configuration Leaflet-Geoman (Bord gauche centré verticalement)
 map.pm.addControls({
     position: 'topleft',
     drawPolyline: true,    // 📏 Tracé
@@ -243,14 +449,12 @@ map.pm.addControls({
     removalMode: true      // 🗑️ Poubelle pour supprimer au clic
 });
 
-// Nettoyage synchronisé des sur-couches travaux si suppression par l'outil corbeille
 map.on('pm:remove', function (e) {
     if (e.layer && e.layer._travauxStripe) {
         impactLayer.removeLayer(e.layer._travauxStripe);
     }
 });
 
-// Appliquer le style au tracé actif
 function applyDrawStyle() {
     if (currentDrawMode === 'cortege') {
         map.pm.setPathOptions({
@@ -277,17 +481,15 @@ function applyDrawStyle() {
 }
 applyDrawStyle();
 
-// Clic sur l'un des boutons de mode (Cortège / Travaux)
 function setDrawMode(mode) {
     currentDrawMode = mode;
     applyDrawStyle();
 
-    document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
-    const btn = document.getElementById(`btn-mode-${mode}`);
-    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.draw-mode-option input').forEach(inp => {
+        inp.checked = (inp.id === `radio-${mode}`);
+    });
 }
 
-// Gestion de la création d'une forme avec Geoman
 map.on('pm:create', function (e) {
     const layer = e.layer;
     layer._manualImpact = true;
@@ -297,7 +499,6 @@ map.on('pm:create', function (e) {
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     if (currentDrawMode === 'cortege') {
-        // Tracé rouge solide 10px
         if (layer.setStyle) {
             layer.setStyle({
                 color: '#ff3b30',
@@ -312,7 +513,7 @@ map.on('pm:create', function (e) {
         layer.bindPopup(`<b>🔴 Cortège / Axe bloqué (10px)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     } else {
-        // Tracé Travaux 10px : Vrais hachurés nets carrés (lineCap: 'butt' strict, sans arrondi)
+        // Mode Travaux : Hachures nettes carrées (anti-saucisse)
         if (layer.setStyle) {
             layer.setStyle({
                 color: '#000000',
@@ -324,7 +525,6 @@ map.on('pm:create', function (e) {
             });
 
             if (layer.getLatLngs) {
-                // Hachures jaunes rectangulaires nettes
                 const yellowStripe = L.polyline(layer.getLatLngs(), {
                     color: '#ffe500',
                     weight: 10,
@@ -342,7 +542,6 @@ map.on('pm:create', function (e) {
     }
 });
 
-// Effacer tous les tracés de manifestation et travaux
 function clearAllShapes() {
     if (confirm("Supprimer tous les tracés (cortège et travaux) ?")) {
         impactLayer.clearLayers();

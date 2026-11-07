@@ -18,24 +18,48 @@
 
     <div id="map"></div>
 
-    <!-- Panneau HUD Régulateur -->
-    <div class="hud-panel">
-        <div class="hud-title">
-            <div class="pulse"></div>
-            Supervision Live
-        </div>
+    <!-- 🍎 BARRE DU HAUT STYLE APPLE (DOCK DES LIGNES) -->
+    <header id="top-dock" class="top-dock">
+        <!-- Carrés des lignes TC générés dynamiquement par app.js -->
+        <div id="dock-lines" class="dock-lines"></div>
 
-        <!-- Sélecteur de mode de tracé : Cortège / Travaux -->
-        <div class="hud-mode-selector">
-            <button class="btn-mode active" id="btn-mode-cortege" onclick="setDrawMode('cortege')">
-                <span class="mode-dot dot-cortege"></span> 🔴 Cortège (10px)
+        <!-- Carré Crayon (Modes de tracé & suppression) -->
+        <div class="dock-item dock-draw-tool" id="dock-draw-tool">
+            <button type="button" class="dock-btn btn-pencil" id="btn-pencil" title="Outils de tracé">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                </svg>
             </button>
-            <button class="btn-mode" id="btn-mode-travaux" onclick="setDrawMode('travaux')">
-                <span class="mode-dot dot-travaux"></span> 🚧 Travaux (10px)
-            </button>
+            <div class="dock-submenu submenu-pencil">
+                <div class="submenu-title">Tracé d'impact (10px)</div>
+                <label class="draw-mode-option" onclick="setDrawMode('cortege')">
+                    <input type="radio" name="draw-mode" id="radio-cortege" checked>
+                    <span class="mode-preview preview-cortege"></span>
+                    <span class="mode-label">Cortège (Rouge 10px)</span>
+                </label>
+                <label class="draw-mode-option" onclick="setDrawMode('travaux')">
+                    <input type="radio" name="draw-mode" id="radio-travaux">
+                    <span class="mode-preview preview-travaux"></span>
+                    <span class="mode-label">Travaux (Noir/Jaune 10px)</span>
+                </label>
+                <div class="submenu-divider"></div>
+                <button type="button" class="btn-clear-shapes" onclick="clearAllShapes()">
+                    🗑️ Effacer les tracés
+                </button>
+            </div>
         </div>
+    </header>
 
-        <button class="btn-action btn-danger" onclick="clearAllShapes()">Effacer les tracés</button>
+    <!-- 🌍 SÉLECTEUR DE CARTE EN BAS À GAUCHE (STANDART / ÉPURÉ) -->
+    <div class="bottom-basemap-switcher">
+        <button type="button" class="basemap-tile-btn active" id="btn-bm-standard" onclick="setBasemap('standard')">
+            <span class="bm-preview bm-preview-standard"></span>
+            <span class="bm-label">STANDART</span>
+        </button>
+        <button type="button" class="basemap-tile-btn" id="btn-bm-epure" onclick="setBasemap('epure')">
+            <span class="bm-preview bm-preview-epure"></span>
+            <span class="bm-label">ÉPURÉ</span>
+        </button>
     </div>
 
     <!-- Leaflet JS -->
