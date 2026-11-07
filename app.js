@@ -63,7 +63,7 @@ const LIGNES_CONFIG = [
         label: '6',
         ref: 'L6',
         color: '#FFE500',
-        textColor: '#1A1A1A', // Texte sombre pour fond jaune
+        textColor: '#1A1A1A',
         destinations: [
             { to: 'Orchamps', label: 'ORCHAMPS' },
             { to: 'Founottes', label: 'FOUNOTTES' }
@@ -107,7 +107,7 @@ const LIGNES_CONFIG = [
         label: '10',
         ref: '10',
         color: '#CECB00',
-        textColor: '#1A1A1A', // Texte sombre pour vert lime
+        textColor: '#1A1A1A',
         destinations: [
             { to: 'Chaffanjon', label: 'CHAFFANJON' },
             { to: 'CHU Minjoz', label: 'CHU MINJOZ' }
@@ -151,7 +151,7 @@ const LIGNES_CONFIG = [
         label: 'PB',
         ref: 'PlanB',
         color: '#1E191A',
-        textColor: '#FFE500', // Jaune sur fond noir
+        textColor: '#FFE500',
         destinations: [
             { to: 'Chalezeule', label: 'CHALEZEULE' },
             { to: 'Hauts du Chazal', label: 'HAUT DU CHAZAL' }
@@ -161,20 +161,21 @@ const LIGNES_CONFIG = [
 
 // =========================================================================
 // 🗺️ INITIALISATION CARTE LEAFLET
+// Cadrage étendu au Nord pour voir Espace Valentin et Châtillon-le-Duc sous le menu
 // =========================================================================
 const boundsBesanconUrbain = L.latLngBounds(
-    [47.205, 5.950],
-    [47.285, 6.070]
+    [47.195, 5.925], // Sud-Ouest
+    [47.320, 6.085]  // Nord-Est étendu (englobe Châtillon-le-Duc et École-Valentin)
 );
 
 const map = L.map('map', {
-    center: [47.243, 6.024], // Centre-ville Besançon
+    center: [47.258, 6.020], // Centré légèrement au nord pour dégager Châtillon-le-Duc sous le menu
     zoom: 14,
-    minZoom: 14,             // Rapproché d'un cran
+    minZoom: 13,             // Permet de dézoomer suffisamment pour voir le terminus nord et Châtillon
     maxZoom: 19,
     zoomControl: false,      // Sans boutons + et -
     maxBounds: boundsBesanconUrbain,
-    maxBoundsViscosity: 1.0
+    maxBoundsViscosity: 0.9
 });
 
 // =========================================================================
@@ -191,7 +192,6 @@ const fondEpure = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', 
     className: 'tiles-grayscale'
 });
 
-// Défaut : Standard
 fondStandard.addTo(map);
 
 function setBasemap(type) {
@@ -209,12 +209,11 @@ function setBasemap(type) {
 }
 
 // =========================================================================
-// 🚌 GESTION DYNAMIQUE DU MENU DOCK APPLE & CALQUES
+// 🚌 GESTION DU DOCK APPLE & CALQUES
 // =========================================================================
 const impactLayer = L.layerGroup().addTo(map);
 const dirLayers = {};
 
-// Initialisation des calques par direction
 LIGNES_CONFIG.forEach(cfg => {
     cfg.destinations.forEach(dest => {
         const key = `${cfg.ref}_${dest.to}`;
@@ -222,7 +221,6 @@ LIGNES_CONFIG.forEach(cfg => {
     });
 });
 
-// Construction dynamique du Dock HTML
 const dockContainer = document.getElementById('dock-lines');
 
 LIGNES_CONFIG.forEach(cfg => {
@@ -240,13 +238,12 @@ LIGNES_CONFIG.forEach(cfg => {
     btnEl.textContent = cfg.label;
     btnEl.title = `Ligne ${cfg.ref} - Cliquez pour tout activer/désactiver`;
 
-    // Clic sur le carré : bascule les 2 destinations d'un coup
     btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleLineAll(cfg.id);
     });
 
-    // Sous-menu translucide
+    // Sous-menu blanc quasi-opaque
     const submenuEl = document.createElement('div');
     submenuEl.className = 'dock-submenu';
     submenuEl.id = `submenu-${cfg.id}`;
@@ -279,7 +276,6 @@ LIGNES_CONFIG.forEach(cfg => {
         submenuEl.appendChild(row);
     });
 
-    // Emplacement pour futures déviations
     const deviationsContainer = document.createElement('div');
     deviationsContainer.className = 'future-deviations-container';
     deviationsContainer.id = `deviations-${cfg.id}`;
@@ -290,7 +286,6 @@ LIGNES_CONFIG.forEach(cfg => {
     dockContainer.appendChild(itemEl);
 });
 
-// Bascule d'une direction individuelle
 function toggleDirection(key, isVisible) {
     const layer = dirLayers[key];
     if (!layer) return;
@@ -301,18 +296,16 @@ function toggleDirection(key, isVisible) {
     }
 }
 
-// Clic sur le carré : bascule l'ensemble des destinations de la ligne
 function toggleLineAll(lineId) {
     const cfg = LIGNES_CONFIG.find(l => l.id === lineId);
     if (!cfg) return;
 
-    // Vérifie si au moins une destination est active
     const checkboxes = cfg.destinations.map(d => {
         return document.getElementById(`chk-${cfg.id}-${d.to.replace(/\s+/g, '_')}`);
     });
 
     const anyActive = checkboxes.some(cb => cb && cb.checked);
-    const targetState = !anyActive; // Si au moins une est active, on éteint tout, sinon on allume tout
+    const targetState = !anyActive;
 
     checkboxes.forEach((cb, idx) => {
         if (cb) {
@@ -325,7 +318,6 @@ function toggleLineAll(lineId) {
     updateLineButtonState(lineId);
 }
 
-// Mise à jour de l'apparence du bouton carré (opacité)
 function updateLineButtonState(lineId) {
     const cfg = LIGNES_CONFIG.find(l => l.id === lineId);
     if (!cfg) return;
@@ -390,7 +382,6 @@ fetch('data/reseau_tc.geojson')
                 if (dirLayers[key]) {
                     dirLayers[key].addLayer(layer);
                 } else {
-                    // Recherche tolérante si légère variante d'orthographe
                     const foundKey = Object.keys(dirLayers).find(k => k.startsWith(`${ref}_`));
                     if (foundKey) dirLayers[foundKey].addLayer(layer);
                 }
@@ -398,15 +389,56 @@ fetch('data/reseau_tc.geojson')
         });
     })
     .catch(err => {
-        console.warn("Information : Chargement TC non disponible, carte active :", err);
+        console.warn("Information : Chargement TC non disponible :", err);
+    });
+
+// =========================================================================
+// 📍 MATÉRIALISATION DES ARRÊTS (POINTS BLANCS VISIBLES + TOOLTIP NOIR 12 SANS BOLD)
+// =========================================================================
+const stationsLayer = L.layerGroup().addTo(map);
+
+fetch('data/arrets.geojson')
+    .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    })
+    .then(data => {
+        if (!data || !Array.isArray(data.features)) return;
+
+        data.features.forEach(f => {
+            const coords = f.geometry.coordinates; // [lon, lat]
+            const p = f.properties || {};
+            const stopName = p.name || "Arrêt";
+
+            // Point rond un peu plus gros que le trait (rayon 5.5px, bord noir net)
+            const marker = L.circleMarker([coords[1], coords[0]], {
+                radius: 5.5,
+                fillColor: '#ffffff',
+                color: '#1a1a1a',
+                weight: 2,
+                fillOpacity: 1.0
+            });
+
+            // Nom de station visible au survol en noir 12 (sans bold) avec fond blanc transparent
+            marker.bindTooltip(stopName, {
+                direction: 'top',
+                offset: [0, -6],
+                className: 'station-tooltip',
+                sticky: true
+            });
+
+            stationsLayer.addLayer(marker);
+        });
+    })
+    .catch(err => {
+        console.warn("Notice arrêts :", err);
     });
 
 // =========================================================================
 // 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX HACHURÉ SANS ARRONDI)
 // =========================================================================
-let currentDrawMode = 'cortege'; // 'cortege' ou 'travaux'
+let currentDrawMode = 'cortege';
 
-// Injection motif SVG hachures diagonales à 45°
 function initTravauxPattern() {
     const svg = document.querySelector('.leaflet-pane svg');
     if (!svg) {
@@ -467,7 +499,6 @@ function applyDrawStyle() {
             lineJoin: 'round'
         });
     } else {
-        // Mode Travaux : Bords carrés stricts (lineCap: 'butt' -> aucun effet saucisse)
         map.pm.setPathOptions({
             color: '#ffe500',
             fillColor: '#ffe500',
@@ -513,7 +544,6 @@ map.on('pm:create', function (e) {
         layer.bindPopup(`<b>🔴 Cortège / Axe bloqué (10px)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     } else {
-        // Mode Travaux : Hachures nettes carrées (anti-saucisse)
         if (layer.setStyle) {
             layer.setStyle({
                 color: '#000000',

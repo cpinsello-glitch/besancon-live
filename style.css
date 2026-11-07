@@ -2,6 +2,7 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    font-family: 'Roboto', sans-serif !important;
 }
 
 body,
@@ -9,7 +10,7 @@ html {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: 'Roboto', sans-serif !important;
     background: #121214;
     user-select: none;
     -webkit-user-select: none;
@@ -34,7 +35,7 @@ html {
     justify-content: center;
     gap: 8px;
     max-width: 98vw;
-    pointer-events: none; /* Laisse passer les clics autour des boutons vers la carte */
+    pointer-events: none;
 }
 
 .dock-lines {
@@ -49,7 +50,6 @@ html {
     pointer-events: auto;
 }
 
-/* Pont invisible pour éviter que le sous-menu se ferme au survol de l'écart */
 .dock-item::after {
     content: '';
     position: absolute;
@@ -66,9 +66,9 @@ html {
     border: 4px solid #ffffff;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-    font-family: inherit;
+    font-family: 'Roboto', sans-serif !important;
     font-size: 20px;
-    font-weight: 800;
+    font-weight: 900;
     letter-spacing: -0.3px;
     display: flex;
     align-items: center;
@@ -87,14 +87,12 @@ html {
     z-index: 10;
 }
 
-/* État inactif (si les 2 destinations sont décochées) */
 .dock-btn.is-inactive {
     opacity: 0.38;
     filter: grayscale(30%);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-/* Bouton Crayon (outils de tracé) */
 .dock-draw-tool {
     margin-left: 4px;
 }
@@ -110,23 +108,23 @@ html {
 }
 
 /* =========================================================================
-   🌫️ SOUS-MENU TRANSLUCIDE FLOTTANT AU SURVOL
+   🌫️ SOUS-MENU MOINS TRANSPARENT (BLANC QUASI-OPAQUE 97%)
    ========================================================================= */
 .dock-submenu {
     position: absolute;
     top: calc(100% + 9px);
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.88);
+    background: rgba(255, 255, 255, 0.97) !important;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border: 1.5px solid rgba(255, 255, 255, 0.75);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
     border-radius: 12px;
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
     padding: 8px 12px;
     min-width: 175px;
     width: max-content;
-    height: auto; /* S'adapte automatiquement à la hauteur du contenu */
+    height: auto;
     display: none;
     flex-direction: column;
     gap: 6px;
@@ -134,7 +132,6 @@ html {
     z-index: 2000;
 }
 
-/* Apparition fluide au survol */
 .dock-item:hover .dock-submenu,
 .dock-item.force-open .dock-submenu {
     display: flex;
@@ -152,13 +149,12 @@ html {
     }
 }
 
-/* Ligne de destination avec case à cocher */
 .dest-row {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 500;
     color: #1a1a1a;
     cursor: pointer;
     text-transform: uppercase;
@@ -209,7 +205,6 @@ html {
     margin-right: -2px;
 }
 
-/* Emplacement réservé aux futures déviations sous chaque ligne */
 .future-deviations-container {
     display: flex;
     flex-direction: column;
@@ -218,7 +213,7 @@ html {
 }
 
 /* =========================================================================
-   ✏️ SOUS-MENU DU CRAYON (MODES DE TRACÉ & EFFACEMENT)
+   ✏️ SOUS-MENU DU CRAYON
    ========================================================================= */
 .submenu-pencil {
     min-width: 210px;
@@ -227,7 +222,7 @@ html {
 
 .submenu-title {
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
     color: #444;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -242,7 +237,7 @@ html {
     border-radius: 8px;
     cursor: pointer;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 500;
     color: #1a1a1a;
     transition: background 0.15s ease;
 }
@@ -291,7 +286,7 @@ html {
     padding: 6px 10px;
     border-radius: 6px;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 500;
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     text-align: center;
@@ -303,7 +298,7 @@ html {
 }
 
 /* =========================================================================
-   🛠️ OUTILS GEOMAN (RECENTRÉS SUR LE BORD GAUCHE)
+   🛠️ OUTILS GEOMAN (FOND GRIS, CADRE BLANC, OUTILS EN NOIR)
    ========================================================================= */
 .leaflet-top.leaflet-left {
     top: 50% !important;
@@ -315,29 +310,43 @@ html {
     border: 3px solid #ffffff !important;
     border-radius: 12px !important;
     overflow: hidden !important;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important;
-    background: rgba(28, 28, 30, 0.95) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35) !important;
+    background: #e5e5ea !important; /* Fond gris */
 }
 
 .leaflet-pm-toolbar .leaflet-buttons-control-button {
-    background: rgba(28, 28, 30, 0.95) !important;
-    border-bottom: 1px solid #3a3a3c !important;
+    background: #e5e5ea !important; /* Fond gris */
+    border-bottom: 1px solid #d1d1d6 !important;
     width: 38px !important;
     height: 38px !important;
     line-height: 38px !important;
     transition: background 0.15s ease !important;
+    color: #000000 !important; /* Outils en noir */
 }
 
 .leaflet-pm-toolbar .leaflet-buttons-control-button:hover {
-    background: #3a3a3c !important;
+    background: #d8d8de !important;
 }
 
 .leaflet-pm-toolbar .leaflet-buttons-control-button.active {
-    background: #ff3b30 !important;
+    background: #ffffff !important;
+}
+
+/* Forcer les icônes de la barre Geoman en noir */
+.leaflet-pm-toolbar .leaflet-buttons-control-button .control-icon {
+    filter: brightness(0) !important;
+}
+
+.leaflet-pm-toolbar .leaflet-buttons-control-button svg,
+.leaflet-pm-toolbar .leaflet-buttons-control-button i {
+    color: #000000 !important;
+    fill: #000000 !important;
+    stroke: #000000 !important;
+    filter: brightness(0) !important;
 }
 
 /* =========================================================================
-   🌍 SÉLECTEUR DE CARTE EN BAS À GAUCHE (STANDART / ÉPURÉ)
+   🌍 SÉLECTEUR DE CARTE EN BAS À GAUCHE (STANDART / ÉPURÉ SANS BOLD)
    ========================================================================= */
 .bottom-basemap-switcher {
     position: fixed;
@@ -386,15 +395,35 @@ html {
     box-shadow: 0 4px 16px rgba(255, 208, 0, 0.6);
 }
 
+/* Label sans bold */
 .bm-label {
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 400 !important; /* Sans bold */
     color: #1a1a1a;
     background: rgba(255, 255, 255, 0.85);
     padding: 2px 6px;
     border-radius: 4px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     letter-spacing: 0.5px;
+}
+
+/* =========================================================================
+   📍 INFOBULLE DES STATIONS AU SURVOL (NOIR 12, SANS BOLD, BLANC TRANSPARENT)
+   ========================================================================= */
+.station-tooltip {
+    font-family: 'Roboto', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 400 !important; /* Sans bold */
+    color: #000000 !important;   /* En noir */
+    background: rgba(255, 255, 255, 0.85) !important; /* Fond blanc transparent */
+    border: 1px solid rgba(0, 0, 0, 0.15) !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    padding: 3px 8px !important;
+}
+
+.station-tooltip::before {
+    border-top-color: rgba(255, 255, 255, 0.85) !important;
 }
 
 /* =========================================================================
