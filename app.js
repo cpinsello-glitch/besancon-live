@@ -1890,7 +1890,7 @@ function saveZoneFromEditor(event) {
 // =========================================================================
 // 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX SUITE NOIR / JAUNE)
 // =========================================================================
-let currentDrawMode = 'cortege';
+let currentDrawMode = 'manifestation';
 
 map.pm.addControls({
     position: 'topleft',
@@ -1907,22 +1907,28 @@ map.pm.addControls({
 });
 
 map.on('pm:remove', function (e) {
-    if (e.layer && e.layer._travauxStripe) {
-        map.removeLayer(e.layer._travauxStripe);
-        impactLayer.removeLayer(e.layer._travauxStripe);
+    if (e.layer) {
+        if (e.layer._travauxStripe) {
+            map.removeLayer(e.layer._travauxStripe);
+            impactLayer.removeLayer(e.layer._travauxStripe);
+        }
+        if (e.layer._manifestationStripe) {
+            map.removeLayer(e.layer._manifestationStripe);
+            impactLayer.removeLayer(e.layer._manifestationStripe);
+        }
     }
 });
 
 function applyDrawStyle() {
-    if (currentDrawMode === 'cortege') {
+    if (currentDrawMode === 'manifestation') {
         map.pm.setPathOptions({
             color: '#ff3b30',
             fillColor: '#ff3b30',
             fillOpacity: 0.45,
             weight: 10,
-            dashArray: null,
-            lineCap: 'round',
-            lineJoin: 'round'
+            dashArray: '15, 15',
+            lineCap: 'butt',
+            lineJoin: 'miter'
         });
     } else {
         map.pm.setPathOptions({
@@ -1955,19 +1961,33 @@ map.on('pm:create', function (e) {
 
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    if (currentDrawMode === 'cortege') {
+    if (currentDrawMode === 'manifestation') {
         if (layer.setStyle) {
             layer.setStyle({
-                color: '#ff3b30',
-                fillColor: '#ff3b30',
-                fillOpacity: 0.45,
+                color: '#000000',
                 weight: 10,
+                opacity: 1.0,
                 dashArray: null,
-                lineCap: 'round',
-                lineJoin: 'round'
+                lineCap: 'butt',
+                lineJoin: 'miter'
             });
+
+            if (layer.getLatLngs) {
+                const redStripe = L.polyline(layer.getLatLngs(), {
+                    color: '#ff3b30',
+                    weight: 10,
+                    dashArray: '15, 15',
+                    opacity: 1.0,
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    interactive: false
+                });
+                layer._manifestationStripe = redStripe;
+                redStripe.addTo(map);
+                impactLayer.addLayer(redStripe);
+            }
         }
-        layer.bindPopup(`<b>🔴 Cortège / Axe bloqué (10px)</b><br><small>Signalé à: ${timeString}</small>`);
+        layer.bindPopup(`<b>🚨 Manifestation / Axe bloqué (10px Zébré Rouge/Noir)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     } else {
         if (layer.setStyle) {
@@ -2001,10 +2021,10 @@ map.on('pm:create', function (e) {
 });
 
 function clearAllShapes() {
-    if (confirm("Supprimer tous les tracés (cortège et travaux) ?")) {
+    if (confirm("Supprimer tous les tracés (manifestation et travaux) ?")) {
         impactLayer.clearLayers();
         map.eachLayer(l => {
-            if (l._manualImpact || l._travauxStripe) {
+            if (l._manualImpact || l._travauxStripe || l._manifestationStripe) {
                 map.removeLayer(l);
             }
         });

@@ -36,16 +36,15 @@
                 </svg>
             </button>
             <div class="dock-submenu submenu-pencil">
-                <div class="submenu-title">Tracé d'impact (10px)</div>
-                <label class="draw-mode-option" onclick="setDrawMode('cortege')">
-                    <input type="radio" name="draw-mode" id="radio-cortege" checked>
-                    <span class="mode-preview preview-cortege"></span>
-                    <span class="mode-label">Cortège (Rouge 10px)</span>
+                <label class="draw-mode-option" onclick="setDrawMode('manifestation')">
+                    <input type="radio" name="draw-mode" id="radio-manifestation" checked>
+                    <span class="mode-preview preview-manifestation"></span>
+                    <span class="mode-label">Manifestation</span>
                 </label>
                 <label class="draw-mode-option" onclick="setDrawMode('travaux')">
                     <input type="radio" name="draw-mode" id="radio-travaux">
                     <span class="mode-preview preview-travaux"></span>
-                    <span class="mode-label">Travaux (Noir/Jaune 10px)</span>
+                    <span class="mode-label">Travaux</span>
                 </label>
                 <div class="submenu-divider"></div>
                 <button type="button" class="btn-clear-shapes" onclick="clearAllShapes()">

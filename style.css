@@ -258,8 +258,15 @@ html {
     flex-shrink: 0;
 }
 
-.preview-cortege {
-    background: #ff3b30;
+.preview-manifestation {
+    background: repeating-linear-gradient(
+        90deg,
+        #ff3b30 0px,
+        #ff3b30 6px,
+        #000000 6px,
+        #000000 12px
+    );
+    border: 1px solid #111;
 }
 
 .preview-travaux {
@@ -382,11 +389,11 @@ html {
 }
 
 .bm-preview-standard {
-    background: linear-gradient(135deg, #0077b6, #00b4d8);
+    background: linear-gradient(135deg, #10b981 0%, #eab308 100%);
 }
 
 .bm-preview-epure {
-    background: linear-gradient(135deg, #222222, #888888);
+    background: linear-gradient(135deg, #000000 0%, #ffffff 100%);
 }
 
 .basemap-tile-btn.active .bm-preview {
