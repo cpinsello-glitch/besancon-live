@@ -53,7 +53,43 @@
                 </button>
             </div>
         </div>
+
+        <!-- Carré Déviations & Information Client -->
+        <div class="dock-item dock-deviation-tool" id="dock-deviation-tool">
+            <button type="button" class="dock-btn btn-deviations" id="btn-deviations" title="Zones d'impact & Info Client" onclick="toggleDeviationPanel()">
+                <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </button>
+        </div>
     </header>
+
+    <!-- 📋 PANNEAU LATÉRAL GAUCHE : ZONES D'IMPACT & INFORMATION CLIENT -->
+    <aside id="deviation-panel" class="deviation-panel">
+        <div class="deviation-panel-header">
+            <div class="panel-header-title">
+                <span class="panel-icon">⚠️</span>
+                <h2>Zones d'impact & Déviations</h2>
+            </div>
+            <button type="button" class="btn-close-panel" id="btn-close-deviation-panel" onclick="toggleDeviationPanel(false)" title="Fermer le panneau">✕</button>
+        </div>
+
+        <div class="deviation-panel-body">
+            <div class="zone-selector-box">
+                <div class="section-label">SÉLECTEUR DE ZONE D'IMPACT</div>
+                <div id="zones-list" class="zones-list">
+                    <!-- Généré dynamiquement -->
+                </div>
+            </div>
+
+            <!-- Contenu réactif dès qu'une zone est active -->
+            <div id="zone-details-container" class="zone-details-container">
+                <!-- Détails lignes et textes à copier générés dynamiquement -->
+            </div>
+        </div>
+    </aside>
 
     <!-- 🌍 SÉLECTEUR DE CARTE EN BAS À GAUCHE (STANDART / ÉPURÉ) -->
     <div class="bottom-basemap-switcher">

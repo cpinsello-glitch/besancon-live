@@ -168,7 +168,7 @@ const boundsBesanconUrbain = L.latLngBounds(
 );
 
 const map = L.map('map', {
-    center: [47.258, 6.020],
+    center: [47.250, 6.020],
     zoom: 14,
     minZoom: 13,
     maxZoom: 19,
@@ -180,6 +180,9 @@ const map = L.map('map', {
 // Plan personnalisé avec z-index élevé pour afficher les points et terminus au-dessus des tracés
 map.createPane('stopsPane');
 map.getPane('stopsPane').style.zIndex = 650;
+
+map.createPane('deviationsPane');
+map.getPane('deviationsPane').style.zIndex = 670;
 
 // =========================================================================
 // 🌍 GESTION DES FONDS DE PLAN (STANDART / ÉPURÉ PAR DÉFAUT)
@@ -213,15 +216,17 @@ function setBasemap(type) {
 }
 
 // =========================================================================
-// 🚌 GESTION DU DOCK APPLE & CALQUES
+// 🚌 GESTION DU DOCK APPLE & CALQUES (TOUT DÉCOCHÉ PAR DÉFAUT)
 // =========================================================================
 const impactLayer = L.layerGroup().addTo(map);
+const deviationsLayer = L.layerGroup().addTo(map);
 const dirLayers = {};
 
 LIGNES_CONFIG.forEach(cfg => {
     cfg.destinations.forEach(dest => {
         const key = `${cfg.ref}_${dest.to}`;
-        dirLayers[key] = L.layerGroup().addTo(map);
+        // Ne PAS ajouter à la carte au démarrage (tout décoché)
+        dirLayers[key] = L.layerGroup();
     });
 });
 
@@ -234,7 +239,7 @@ LIGNES_CONFIG.forEach(cfg => {
 
     const btnEl = document.createElement('button');
     btnEl.type = 'button';
-    btnEl.className = 'dock-btn';
+    btnEl.className = 'dock-btn is-inactive'; // Inactif par défaut
     btnEl.id = `btn-line-${cfg.id}`;
     btnEl.style.backgroundColor = cfg.color;
     btnEl.style.color = cfg.textColor;
@@ -257,7 +262,7 @@ LIGNES_CONFIG.forEach(cfg => {
 
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.checked = true;
+        checkbox.checked = false; // Décoché par défaut
         checkbox.id = `chk-${cfg.id}-${dest.to.replace(/\s+/g, '_')}`;
 
         checkbox.addEventListener('change', () => {
@@ -292,6 +297,20 @@ function toggleDirection(key, isVisible) {
     } else {
         if (map.hasLayer(layer)) map.removeLayer(layer);
     }
+}
+
+function setLineState(lineId, shouldBeActive) {
+    const cfg = LIGNES_CONFIG.find(l => l.id === lineId);
+    if (!cfg) return;
+
+    cfg.destinations.forEach(d => {
+        const cb = document.getElementById(`chk-${cfg.id}-${d.to.replace(/\s+/g, '_')}`);
+        if (cb) {
+            cb.checked = shouldBeActive;
+            toggleDirection(`${cfg.ref}_${d.to}`, shouldBeActive);
+        }
+    });
+    updateLineButtonState(lineId);
 }
 
 function toggleLineAll(lineId) {
@@ -349,12 +368,20 @@ function cleanStopName(name) {
 }
 
 // =========================================================================
-// 📥 CHARGEMENT SIMULTANÉ LIGNES TC & ARRÊTS PROJETÉS STRICTS
+// 📥 CHARGEMENT SIMULTANÉ LIGNES TC, ARRÊTS & DÉVIATIONS
 // =========================================================================
+let allDeviationsConfig = null;
+
 Promise.all([
     fetch('data/reseau_tc.geojson').then(r => r.json()),
-    fetch('data/lignes_arrets.json').then(r => r.json())
-]).then(([tcData, arretsParLigne]) => {
+    fetch('data/lignes_arrets.json').then(r => r.json()),
+    fetch('data/deviations.json').then(r => r.json()).catch(() => null)
+]).then(([tcData, arretsParLigne, devData]) => {
+    allDeviationsConfig = devData;
+    if (devData && devData.zones) {
+        renderZonesList(devData.zones);
+    }
+
     if (!tcData || !Array.isArray(tcData.features)) return;
 
     tcData.features.forEach(feature => {
@@ -436,6 +463,290 @@ Promise.all([
 }).catch(err => {
     console.warn("Erreur chargement données TC et arrêts :", err);
 });
+
+// =========================================================================
+// ⚠️ GESTION DU PANNEAU DE DÉVIATIONS & INFORMATION CLIENT
+// =========================================================================
+const activeZonesSet = new Set();
+
+function toggleDeviationPanel(forceState) {
+    const panel = document.getElementById('deviation-panel');
+    if (!panel) return;
+    if (typeof forceState === 'boolean') {
+        if (forceState) panel.classList.add('open');
+        else panel.classList.remove('open');
+    } else {
+        panel.classList.toggle('open');
+    }
+}
+
+function renderZonesList(zones) {
+    const container = document.getElementById('zones-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    zones.forEach(zone => {
+        const row = document.createElement('div');
+        row.className = 'zone-item-row';
+        row.id = `zone-row-${zone.id}`;
+
+        const info = document.createElement('div');
+        info.className = 'zone-info-block';
+        info.innerHTML = `
+            <span class="zone-title">${zone.nom}</span>
+            <span class="zone-desc">${zone.description}</span>
+        `;
+
+        const switchLabel = document.createElement('label');
+        switchLabel.className = 'zone-toggle-switch';
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = `chk-zone-${zone.id}`;
+
+        input.addEventListener('change', () => {
+            setZoneActive(zone.id, input.checked);
+        });
+
+        const slider = document.createElement('span');
+        slider.className = 'slider-round';
+
+        switchLabel.appendChild(input);
+        switchLabel.appendChild(slider);
+
+        row.appendChild(info);
+        row.appendChild(switchLabel);
+        container.appendChild(row);
+    });
+}
+
+function setZoneActive(zoneId, isActive) {
+    if (!allDeviationsConfig || !Array.isArray(allDeviationsConfig.zones)) return;
+    const zone = allDeviationsConfig.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+
+    const row = document.getElementById(`zone-row-${zoneId}`);
+    const chk = document.getElementById(`chk-zone-${zoneId}`);
+    if (chk) chk.checked = isActive;
+
+    if (isActive) {
+        activeZonesSet.add(zoneId);
+        if (row) row.classList.add('is-active');
+    } else {
+        activeZonesSet.delete(zoneId);
+        if (row) row.classList.remove('is-active');
+    }
+
+    // Mise à jour de l'indicateur sur le bouton du dock
+    const devBtn = document.getElementById('btn-deviations');
+    if (devBtn) {
+        if (activeZonesSet.size > 0) devBtn.classList.add('has-active-zone');
+        else devBtn.classList.remove('has-active-zone');
+    }
+
+    renderDeviationsOnMap();
+    renderZoneDetailsPanel();
+}
+
+function renderDeviationsOnMap() {
+    deviationsLayer.clearLayers();
+    if (activeZonesSet.size === 0 || !allDeviationsConfig) return;
+
+    allDeviationsConfig.zones.forEach(zone => {
+        if (!activeZonesSet.has(zone.id)) return;
+
+        // 1. Tracer le polygone d'impact (halo ambre/rouge)
+        if (Array.isArray(zone.polygon) && zone.polygon.length > 2) {
+            const latLngs = zone.polygon.map(coord => [coord[1], coord[0]]);
+            const poly = L.polygon(latLngs, {
+                color: '#d97706',
+                fillColor: '#f59e0b',
+                fillOpacity: 0.28,
+                weight: 2.5,
+                dashArray: '6, 6',
+                pane: 'deviationsPane'
+            });
+            poly.bindPopup(`<b>⚠️ Zone d'impact active</b><br>${zone.nom}`);
+            deviationsLayer.addLayer(poly);
+        }
+
+        // 2. Pour chaque ligne impactée
+        if (Array.isArray(zone.lignesImpactees)) {
+            zone.lignesImpactees.forEach(ligne => {
+                // Si la ligne n'est pas cochée dans le dock, on l'active pour voir le contexte
+                setLineState(ligne.ref, true);
+
+                if (Array.isArray(ligne.directions)) {
+                    ligne.directions.forEach(dir => {
+                        // Tracé de déviation
+                        if (Array.isArray(dir.coordsDeviation) && dir.coordsDeviation.length > 1) {
+                            const devLatLngs = dir.coordsDeviation.map(c => [c[1], c[0]]);
+
+                            // Ligne de déviation avec double tracé (bordure blanche + bleu intense L3)
+                            const casingLine = L.polyline(devLatLngs, {
+                                color: '#ffffff',
+                                weight: 8,
+                                opacity: 0.9,
+                                lineCap: 'round',
+                                lineJoin: 'round',
+                                pane: 'deviationsPane'
+                            });
+
+                            const mainDevLine = L.polyline(devLatLngs, {
+                                color: ligne.color,
+                                weight: 5,
+                                opacity: 1.0,
+                                dashArray: '10, 6',
+                                lineCap: 'round',
+                                lineJoin: 'round',
+                                pane: 'deviationsPane'
+                            });
+
+                            mainDevLine.bindPopup(`
+                                <b>🔄 Déviation Ligne ${ligne.ref} (${dir.to})</b><br>
+                                <b>Itinéraire :</b> ${dir.itineraire}<br>
+                                🛑 <b>Dernier arrêt :</b> ${dir.dernierArret}<br>
+                                ✅ <b>Reprise :</b> ${dir.prochainArret}
+                            `);
+
+                            deviationsLayer.addLayer(casingLine);
+                            deviationsLayer.addLayer(mainDevLine);
+                        }
+
+                        // Marqueur spécial pour l'arrêt non desservi (Gare Viotte)
+                        if (dir.arretsNonDesservis && dir.arretsNonDesservis.includes("Gare Viotte")) {
+                            const stopViotteIcon = L.divIcon({
+                                className: 'leaflet-missed-stop-icon',
+                                html: `<div style="background:#dc2626; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.4);">✕</div>`,
+                                iconAnchor: [11, 11]
+                            });
+                            const missedMarker = L.marker([47.246176, 6.022169], {
+                                icon: stopViotteIcon,
+                                pane: 'stopsPane'
+                            }).bindTooltip("Arrêt Gare Viotte NON DESSERVI", {
+                                direction: 'top',
+                                offset: [0, -10],
+                                className: 'station-tooltip',
+                                sticky: true
+                            });
+                            deviationsLayer.addLayer(missedMarker);
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+
+function renderZoneDetailsPanel() {
+    const container = document.getElementById('zone-details-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (activeZonesSet.size === 0 || !allDeviationsConfig) return;
+
+    allDeviationsConfig.zones.forEach(zone => {
+        if (!activeZonesSet.has(zone.id)) return;
+
+        zone.lignesImpactees.forEach(ligne => {
+            const card = document.createElement('div');
+            card.className = 'deviation-line-card';
+
+            let directionsHtml = '';
+            ligne.directions.forEach(dir => {
+                directionsHtml += `
+                    <div class="direction-deviation-box">
+                        <div class="direction-header-title">
+                            <span>Sens ${dir.to}</span>
+                        </div>
+                        <div class="stop-indicator-row">
+                            <span class="indicator-label">🛑 Dernier arrêt :</span>
+                            <span class="indicator-val-stop">${dir.dernierArret}</span>
+                        </div>
+                        <div class="stop-indicator-row">
+                            <span class="indicator-label">❌ Non desservi :</span>
+                            <span class="indicator-val-missed">${dir.arretsNonDesservis.join(', ')}</span>
+                        </div>
+                        <div class="stop-indicator-row">
+                            <span class="indicator-label">✅ Prochain arrêt :</span>
+                            <span class="indicator-val-stop">${dir.prochainArret}</span>
+                        </div>
+                        <div class="stop-indicator-row">
+                            <span class="indicator-label">🛣️ Itinéraire bis :</span>
+                            <span class="indicator-val-route">${dir.itineraire}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const clientInfoHtml = `
+                <div class="client-info-box">
+                    <div class="info-box-title">
+                        <span>📢 Message Information Voyageurs (SAEIV / SMS)</span>
+                    </div>
+                    <div class="info-textarea-display" id="info-text-${zone.id}-${ligne.ref}">${ligne.texteInfoClient}</div>
+                    <button type="button" class="btn-copy-info" onclick="copyClientInfo('info-text-${zone.id}-${ligne.ref}', this)">
+                        <span>📋</span> Copier l'information client
+                    </button>
+                </div>
+            `;
+
+            card.innerHTML = `
+                <div class="line-card-header">
+                    <span class="line-badge-lg" style="background-color:${ligne.color}; color:${ligne.textColor};">${ligne.label}</span>
+                    <span class="line-status-alert">DÉVIATION EN COURS</span>
+                </div>
+                <div class="line-card-content">
+                    ${directionsHtml}
+                    ${clientInfoHtml}
+                </div>
+            `;
+
+            container.appendChild(card);
+        });
+    });
+}
+
+function copyClientInfo(textElementId, btnEl) {
+    const el = document.getElementById(textElementId);
+    if (!el) return;
+    const textToCopy = el.innerText || el.textContent;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            triggerCopySuccess(btnEl);
+        }).catch(() => {
+            fallbackCopy(textToCopy, btnEl);
+        });
+    } else {
+        fallbackCopy(textToCopy, btnEl);
+    }
+}
+
+function fallbackCopy(text, btnEl) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        triggerCopySuccess(btnEl);
+    } catch (e) {
+        console.warn('Copie manuelle nécessaire', e);
+    }
+    document.body.removeChild(ta);
+}
+
+function triggerCopySuccess(btnEl) {
+    if (!btnEl) return;
+    const originalHtml = btnEl.innerHTML;
+    btnEl.classList.add('copied');
+    btnEl.innerHTML = `<span>✅</span> Information copiée !`;
+    setTimeout(() => {
+        btnEl.classList.remove('copied');
+        btnEl.innerHTML = originalHtml;
+    }, 2500);
+}
 
 // =========================================================================
 // 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX SUITE NOIR / JAUNE)

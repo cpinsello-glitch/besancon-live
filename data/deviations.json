@@ -1,0 +1,62 @@
+{
+  "zones": [
+    {
+      "id": "zone_gare_viotte",
+      "nom": "Secteur Gare Viotte (Parvis bloqué)",
+      "description": "Blocage esplanade de la gare, carrefour avenue de la Paix / rue de Belfort.",
+      "polygon": [
+        [6.0205, 47.2468],
+        [6.0235, 47.2468],
+        [6.0240, 47.2452],
+        [6.0210, 47.2450]
+      ],
+      "lignesImpactees": [
+        {
+          "ref": "L3",
+          "label": "Ligne 3",
+          "color": "#006AB3",
+          "textColor": "#FFFFFF",
+          "directions": [
+            {
+              "to": "8 Septembre",
+              "dernierArret": "Voirin",
+              "prochainArret": "Isenbart",
+              "arretsNonDesservis": ["Gare Viotte"],
+              "itineraire": "Place Leclerc > Avenue Edgar Faure > Avenue Foch",
+              "coordsDeviation": [
+                [6.01385, 47.24225],
+                [6.01630, 47.24350],
+                [6.01790, 47.24385],
+                [6.01950, 47.24435],
+                [6.02090, 47.24455],
+                [6.02210, 47.24410],
+                [6.02330, 47.24365],
+                [6.02440, 47.24315],
+                [6.02526, 47.24277]
+              ]
+            },
+            {
+              "to": "Temis",
+              "dernierArret": "Isenbart",
+              "prochainArret": "Voirin",
+              "arretsNonDesservis": ["Gare Viotte"],
+              "itineraire": "Avenue Foch > Avenue Edgar Faure > Place Leclerc",
+              "coordsDeviation": [
+                [6.02526, 47.24277],
+                [6.02440, 47.24315],
+                [6.02330, 47.24365],
+                [6.02210, 47.24410],
+                [6.02090, 47.24455],
+                [6.01950, 47.24435],
+                [6.01790, 47.24385],
+                [6.01630, 47.24350],
+                [6.01385, 47.24225]
+              ]
+            }
+          ],
+          "texteInfoClient": "⚠️ INFO TRAFIC GINKO - Ligne L3\nEn raison d'un blocage secteur Gare Viotte, la ligne L3 est déviée dans les deux sens de circulation :\n❌ Arrêt non desservi : Gare Viotte\n📍 Reports conseillés : arrêts Voirin et Isenbart\nItinéraire de déviation via Place Leclerc, Av. Edgar Faure et Av. Foch."
+        }
+      ]
+    }
+  ]
+}
