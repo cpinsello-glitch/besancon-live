@@ -22,7 +22,7 @@ const LIGNES_CONFIG = [
         textColor: '#FFFFFF',
         destinations: [
             { to: 'Gare Viotte', label: 'GARE VIOTTE' },
-            { to: 'Hauts du Chazal', label: 'HAUT DU CHAZAL' }
+            { to: 'Hauts du Chazal', label: 'HAUTS DU CHAZAL' }
         ]
     },
     {
@@ -182,7 +182,7 @@ map.createPane('stopsPane');
 map.getPane('stopsPane').style.zIndex = 650;
 
 // =========================================================================
-// 🌍 GESTION DES FONDS DE PLAN (STANDART / ÉPURÉ)
+// 🌍 GESTION DES FONDS DE PLAN (STANDART / ÉPURÉ PAR DÉFAUT)
 // =========================================================================
 const fondStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
@@ -195,7 +195,8 @@ const fondEpure = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', 
     className: 'tiles-grayscale'
 });
 
-fondStandard.addTo(map);
+// Affiche la version ÉPURÉE (Noir & Blanc) par défaut
+fondEpure.addTo(map);
 
 function setBasemap(type) {
     if (type === 'standard') {
@@ -264,15 +265,11 @@ LIGNES_CONFIG.forEach(cfg => {
             updateLineButtonState(cfg.id);
         });
 
-        const arrowSpan = document.createElement('span');
-        arrowSpan.className = 'dest-arrow-icon';
-        arrowSpan.textContent = '▶';
-
+        // Texte de destination direct sans flèche
         const textSpan = document.createElement('span');
         textSpan.textContent = dest.label;
 
         row.appendChild(checkbox);
-        row.appendChild(arrowSpan);
         row.appendChild(textSpan);
         submenuEl.appendChild(row);
     });
@@ -338,26 +335,27 @@ function updateLineButtonState(lineId) {
     }
 }
 
-// Fonction de calcul de proximité d'un arrêt avec les coordonnées d'un tracé
-function isStopNearCoords(stopLon, stopLat, coordsList, threshold = 0.0012) {
-    const threshSq = threshold * threshold;
-    for (let i = 0; i < coordsList.length; i++) {
-        const dx = stopLon - coordsList[i][0];
-        const dy = stopLat - coordsList[i][1];
-        if (dx * dx + dy * dy < threshSq) return true;
+// Nettoyage des noms d'arrêts (retire les préfixes communaux comme "École-Valentin - ")
+function cleanStopName(name) {
+    if (!name) return "Arrêt";
+    let cleaned = name;
+    if (cleaned.includes(' - ')) {
+        const parts = cleaned.split(' - ');
+        if (parts.length >= 2) {
+            cleaned = parts.slice(1).join(' - ');
+        }
     }
-    return false;
+    return cleaned.replace(/^Besançon\s+/i, '').replace(/["']/g, '').trim();
 }
 
 // =========================================================================
-// 📥 CHARGEMENT SIMULTANÉ LIGNES TC & ARRÊTS
+// 📥 CHARGEMENT SIMULTANÉ LIGNES TC & ARRÊTS PROJETÉS STRICTS
 // =========================================================================
 Promise.all([
     fetch('data/reseau_tc.geojson').then(r => r.json()),
-    fetch('data/arrets.geojson').then(r => r.json())
-]).then(([tcData, arretsData]) => {
+    fetch('data/lignes_arrets.json').then(r => r.json())
+]).then(([tcData, arretsParLigne]) => {
     if (!tcData || !Array.isArray(tcData.features)) return;
-    const allStops = arretsData && Array.isArray(arretsData.features) ? arretsData.features : [];
 
     tcData.features.forEach(feature => {
         const p = feature.properties || {};
@@ -380,85 +378,54 @@ Promise.all([
 
         if (!targetLayer) return;
 
-        // 1. TRACÉ DE LA LIGNE (SANS BULLE AU SURVOL DE LA LIGNE)
+        // 1. TRACÉ OFFICIEL DE LA LIGNE (Sans bulle au survol de la ligne)
         const lineLayer = L.geoJSON(feature, {
             style: {
                 color: color,
                 weight: isTram ? 5 : 4,
-                opacity: 0.92,
+                opacity: 0.95,
                 dashArray: isNavette ? '6, 6' : null
             }
         });
         targetLayer.addLayer(lineLayer);
 
-        // Aplatissement des coordonnées du tracé pour associer les arrêts
-        const lineCoords = [];
-        if (feature.geometry.type === 'LineString') {
-            feature.geometry.coordinates.forEach(c => lineCoords.push(c));
-        } else if (feature.geometry.type === 'MultiLineString') {
-            feature.geometry.coordinates.forEach(subLine => {
-                subLine.forEach(c => lineCoords.push(c));
+        // 2. ARRÊTS SPÉCIFIQUES & STRICTS (Issus du GTFS, projetés pile sur le tracé)
+        const lineData = arretsParLigne[key];
+        if (lineData && Array.isArray(lineData.stops)) {
+            lineData.stops.forEach(st => {
+                const stopMarker = L.circleMarker([st.lat, st.lon], {
+                    radius: 6.5,          // Diamètre 13px
+                    fillColor: color,     // Couleur exacte de la ligne
+                    stroke: false,        // Sans contour
+                    fillOpacity: 1.0,
+                    pane: 'stopsPane'     // Visible par-dessus le tracé de la ligne
+                });
+
+                // Nom de station sans préfixe (ex: "Centre Commercial" au lieu de "École-Valentin - ...")
+                stopMarker.bindTooltip(cleanStopName(st.name), {
+                    direction: 'top',
+                    offset: [0, -6],
+                    className: 'station-tooltip',
+                    sticky: true
+                });
+
+                targetLayer.addLayer(stopMarker);
             });
         }
 
-        // 2. MATÉRIALISATION DES ARRÊTS DE LA LIGNE (ROND 13PX COULEUR LIGNE SANS CONTOUR)
-        allStops.forEach(st => {
-            const linesStr = st.properties.lines || "";
-            const servesLine = linesStr.includes(ref) || (ref === 'PlanB' && linesStr.includes('T1'));
-
-            if (servesLine) {
-                const sLon = st.geometry.coordinates[0];
-                const sLat = st.geometry.coordinates[1];
-
-                // Vérifie si l'arrêt se situe sur le tracé de cette direction
-                if (isStopNearCoords(sLon, sLat, lineCoords)) {
-                    const stopMarker = L.circleMarker([sLat, sLon], {
-                        radius: 6.5,          // Diamètre 13px
-                        fillColor: color,     // Couleur de la ligne
-                        stroke: false,        // Sans contour
-                        fillOpacity: 1.0,
-                        pane: 'stopsPane'     // Visible par-dessus le tracé de la ligne
-                    });
-
-                    // Nom de station visible au survol en noir 12 (sans bold) avec fond blanc transparent
-                    stopMarker.bindTooltip(st.properties.name || "Arrêt", {
-                        direction: 'top',
-                        offset: [0, -6],
-                        className: 'station-tooltip',
-                        sticky: true
-                    });
-
-                    targetLayer.addLayer(stopMarker);
-                }
-            }
-        });
-
-        // 3. BADGE AU TERMINUS AVEC LE NOM (STYLE DU MENU : ▶ TERMINUS)
-        if (lineCoords.length > 0) {
+        // 3. BADGE DE TERMINUS CALIBRÉ SANS FLÈCHE (Contour couleur de la ligne)
+        const terminusCoord = lineData && lineData.terminus ? lineData.terminus : null;
+        if (terminusCoord) {
             const destObj = cfg ? cfg.destinations.find(d => d.to === to) : null;
             const destLabel = destObj ? destObj.label : to;
 
-            // Détection de l'extrémité terminus (dernier point ou premier selon l'orientation)
-            let termCoord = lineCoords[lineCoords.length - 1];
-
-            // Recherche si un arrêt correspond exactement au nom du terminus pour un ancrage parfait
-            const termStop = allStops.find(st => {
-                const sName = (st.properties.name || "").toLowerCase();
-                const dName = to.toLowerCase();
-                return sName.includes(dName) || dName.includes(sName);
-            });
-
-            if (termStop) {
-                termCoord = [termStop.geometry.coordinates[0], termStop.geometry.coordinates[1]];
-            }
-
             const terminusIcon = L.divIcon({
                 className: 'leaflet-terminus-icon',
-                html: `<div class="terminus-badge" style="border-color:${color};"><span class="terminus-arrow" style="color:${color};">▶</span> ${destLabel}</div>`,
+                html: `<div class="terminus-badge" style="border-color:${color};">${destLabel}</div>`,
                 iconAnchor: [0, 0]
             });
 
-            const terminusMarker = L.marker([termCoord[1], termCoord[0]], {
+            const terminusMarker = L.marker([terminusCoord[1], terminusCoord[0]], {
                 icon: terminusIcon,
                 pane: 'stopsPane'
             });
@@ -471,36 +438,9 @@ Promise.all([
 });
 
 // =========================================================================
-// 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX HACHURÉ SANS ARRONDI)
+// 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX SUITE NOIR / JAUNE)
 // =========================================================================
 let currentDrawMode = 'cortege';
-
-function initTravauxPattern() {
-    const svg = document.querySelector('.leaflet-pane svg');
-    if (!svg) {
-        setTimeout(initTravauxPattern, 300);
-        return;
-    }
-    let defs = svg.querySelector('defs');
-    if (!defs) {
-        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        svg.insertBefore(defs, svg.firstChild);
-    }
-    if (!document.getElementById('travaux-pattern')) {
-        const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
-        pattern.setAttribute('id', 'travaux-pattern');
-        pattern.setAttribute('width', '16');
-        pattern.setAttribute('height', '16');
-        pattern.setAttribute('patternUnits', 'userSpaceOnUse');
-        pattern.setAttribute('patternTransform', 'rotate(45)');
-        pattern.innerHTML = `
-            <rect width="16" height="16" fill="#000000" />
-            <rect width="8" height="16" fill="#ffe500" />
-        `;
-        defs.appendChild(pattern);
-    }
-}
-setTimeout(initTravauxPattern, 400);
 
 // Configuration Leaflet-Geoman (Bord gauche centré verticalement)
 map.pm.addControls({
@@ -519,6 +459,7 @@ map.pm.addControls({
 
 map.on('pm:remove', function (e) {
     if (e.layer && e.layer._travauxStripe) {
+        map.removeLayer(e.layer._travauxStripe);
         impactLayer.removeLayer(e.layer._travauxStripe);
     }
 });
@@ -535,12 +476,13 @@ function applyDrawStyle() {
             lineJoin: 'round'
         });
     } else {
+        // Prévisualisation travaux : tirets jaunes et noirs
         map.pm.setPathOptions({
             color: '#ffe500',
             fillColor: '#ffe500',
             fillOpacity: 0.45,
             weight: 10,
-            dashArray: '16, 16',
+            dashArray: '15, 15',
             lineCap: 'butt',
             lineJoin: 'miter'
         });
@@ -580,30 +522,35 @@ map.on('pm:create', function (e) {
         layer.bindPopup(`<b>🔴 Cortège / Axe bloqué (10px)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     } else {
+        // Mode TRAVAUX : Alternance parfaite 10px TRAIT NOIR et TRAIT JAUNE (15px/15px)
         if (layer.setStyle) {
+            // Couche inférieure noire continue 10px bords droits
             layer.setStyle({
                 color: '#000000',
                 weight: 10,
                 opacity: 1.0,
+                dashArray: null,
                 lineCap: 'butt',
-                lineJoin: 'miter',
-                className: 'travaux-zebra-line'
+                lineJoin: 'miter'
             });
 
+            // Couche supérieure en tirets jaunes 10px (laisse apparaître le noir dans les intervalles)
             if (layer.getLatLngs) {
                 const yellowStripe = L.polyline(layer.getLatLngs(), {
                     color: '#ffe500',
                     weight: 10,
-                    dashArray: '16, 16',
+                    dashArray: '15, 15',
                     opacity: 1.0,
                     lineCap: 'butt',
-                    lineJoin: 'miter'
+                    lineJoin: 'miter',
+                    interactive: false
                 });
                 layer._travauxStripe = yellowStripe;
+                yellowStripe.addTo(map);
                 impactLayer.addLayer(yellowStripe);
             }
         }
-        layer.bindPopup(`<b>🚧 Zone de travaux (10px)</b><br><small>Signalé à: ${timeString}</small>`);
+        layer.bindPopup(`<b>🚧 Zone de travaux (10px Zébré Jaune/Noir)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     }
 });
@@ -611,6 +558,11 @@ map.on('pm:create', function (e) {
 function clearAllShapes() {
     if (confirm("Supprimer tous les tracés (cortège et travaux) ?")) {
         impactLayer.clearLayers();
+        map.eachLayer(l => {
+            if (l._manualImpact || l._travauxStripe) {
+                map.removeLayer(l);
+            }
+        });
     }
 }
 

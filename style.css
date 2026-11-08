@@ -264,11 +264,11 @@ html {
 
 .preview-travaux {
     background: repeating-linear-gradient(
-        -45deg,
-        #ffe500,
-        #ffe500 4px,
-        #000 4px,
-        #000 8px
+        90deg,
+        #ffe500 0px,
+        #ffe500 6px,
+        #000000 6px,
+        #000000 12px
     );
     border: 1px solid #111;
 }
@@ -435,11 +435,10 @@ html {
 .terminus-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
     background: rgba(255, 255, 255, 0.96);
     border: 2px solid;
     border-radius: 6px;
-    padding: 2px 7px;
+    padding: 3px 8px;
     font-family: 'Roboto', sans-serif !important;
     font-size: 11px;
     font-weight: 700;
@@ -452,21 +451,10 @@ html {
     letter-spacing: 0.3px;
 }
 
-.terminus-arrow {
-    font-size: 9px;
-}
-
 /* =========================================================================
-   🎨 HACHURES TRAVAUX (ANTI-SAUCISSES, BORDS NETS) & MODE ÉPURÉ
+   🎨 FOND DE PLAN ÉPURÉ (GRIS / CONTRASTÉ)
    ========================================================================= */
 .tiles-grayscale,
 .tiles-grayscale .leaflet-tile {
     filter: grayscale(100%) contrast(110%) brightness(96%) !important;
-}
-
-.travaux-zebra-line {
-    stroke: url(#travaux-pattern) #ffe500 !important;
-    stroke-linecap: butt !important;
-    stroke-linejoin: miter !important;
-    filter: drop-shadow(0 0 1px #000);
 }
