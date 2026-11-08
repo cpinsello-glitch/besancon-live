@@ -218,8 +218,49 @@ function setBasemap(type) {
 // =========================================================================
 const impactLayer = L.layerGroup().addTo(map);
 const deviationsLayer = L.layerGroup().addTo(map);
+const previewDeviationLayer = L.layerGroup().addTo(map); // Prévisualisation en direct avant validation
 const dirLayers = {};
 const rawLineCoords = {}; // Stocke les points GPS des lignes normales pour le découpage propre
+
+// =========================================================================
+// ✋ RACCOURCI BARRE D'ESPACE : MAIN DE DÉPLACEMENT DE LA CARTE (PAN)
+// =========================================================================
+let isSpacePanActive = false;
+
+window.addEventListener('keydown', (e) => {
+    const activeEl = document.activeElement;
+    const tag = activeEl ? activeEl.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || (activeEl && activeEl.isContentEditable)) {
+        return;
+    }
+    if (e.code === 'Space' && !isSpacePanActive) {
+        e.preventDefault();
+        isSpacePanActive = true;
+        const container = map.getContainer();
+        container.style.cursor = 'grab';
+        map.dragging.enable();
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        isSpacePanActive = false;
+        const container = map.getContainer();
+        container.style.cursor = '';
+    }
+});
+
+map.on('mousedown', () => {
+    if (isSpacePanActive) {
+        map.getContainer().style.cursor = 'grabbing';
+    }
+});
+
+map.on('mouseup', () => {
+    if (isSpacePanActive) {
+        map.getContainer().style.cursor = 'grab';
+    }
+});
 
 LIGNES_CONFIG.forEach(cfg => {
     cfg.destinations.forEach(dest => {
@@ -229,7 +270,7 @@ LIGNES_CONFIG.forEach(cfg => {
 });
 
 const dockContainer = document.getElementById('dock-lines');
-
+// 
 LIGNES_CONFIG.forEach(cfg => {
     const itemEl = document.createElement('div');
     itemEl.className = 'dock-item';
@@ -375,6 +416,13 @@ function loadDeviationsConfig(fallbackData) {
         if (localSaved) {
             const parsed = JSON.parse(localSaved);
             if (parsed && Array.isArray(parsed.zones) && parsed.zones.length > 0) {
+                parsed.zones.forEach(z => {
+                    if (Array.isArray(z.lignesImpactees)) {
+                        z.lignesImpactees.forEach(l => {
+                            delete l.tronconBloqueOrigine;
+                        });
+                    }
+                });
                 return parsed;
             }
         }
@@ -1054,107 +1102,159 @@ function findClosestPointIndex(coords, pt) {
 
 function renderDeviationsOnMap() {
     deviationsLayer.clearLayers();
-    if (activeZonesSet.size === 0 || !allDeviationsConfig) return;
 
-    allDeviationsConfig.zones.forEach(zone => {
-        if (!activeZonesSet.has(zone.id)) return;
+    // Ensemble des clés de direction impactées : ex. "L3_8 Septembre"
+    const deviatedDirKeys = new Set();
 
-        // 1. Tracer le polygone d'impact (halo ambre/rouge)
-        if (Array.isArray(zone.polygon) && zone.polygon.length > 2) {
-            const latLngs = zone.polygon.map(coord => [coord[1], coord[0]]);
-            const poly = L.polygon(latLngs, {
-                color: '#d97706',
-                fillColor: '#f59e0b',
-                fillOpacity: 0.28,
-                weight: 2.5,
-                dashArray: '6, 6',
-                pane: 'deviationsPane'
-            });
-            poly.bindPopup(`<b>⚠️ Zone d'impact active</b><br>${zone.nom}`);
-            deviationsLayer.addLayer(poly);
-        }
+    if (activeZonesSet.size > 0 && allDeviationsConfig) {
+        allDeviationsConfig.zones.forEach(zone => {
+            if (!activeZonesSet.has(zone.id)) return;
 
-        // 2. Pour chaque ligne impactée
-        if (Array.isArray(zone.lignesImpactees)) {
-            zone.lignesImpactees.forEach(ligne => {
-                // S'assurer que le calque normal de la ligne est affiché
-                setLineState(ligne.ref, true);
+            // 1. Tracer le polygone d'impact (halo ambre/rouge)
+            if (Array.isArray(zone.polygon) && zone.polygon.length > 2) {
+                const latLngs = zone.polygon.map(coord => [coord[1], coord[0]]);
+                const poly = L.polygon(latLngs, {
+                    color: '#d97706',
+                    fillColor: '#f59e0b',
+                    fillOpacity: 0.28,
+                    weight: 2.5,
+                    dashArray: '6, 6',
+                    pane: 'deviationsPane'
+                });
+                poly.bindPopup(`<b>⚠️ Zone d'impact active</b><br>${zone.nom}`);
+                deviationsLayer.addLayer(poly);
+            }
 
-                // A. TRONÇON D'ORIGINE IMPACTÉ : POINTILLÉS ESTOMPÉS À 50%
-                if (Array.isArray(ligne.tronconBloqueOrigine) && ligne.tronconBloqueOrigine.length > 1) {
-                    const blockedLatLngs = ligne.tronconBloqueOrigine.map(c => [c[1], c[0]]);
+            // 2. Traitement de chaque ligne impactée
+            if (Array.isArray(zone.lignesImpactees)) {
+                zone.lignesImpactees.forEach(ligne => {
+                    const cfg = LIGNES_CONFIG.find(l => l.id === ligne.ref);
+                    if (!cfg) return;
 
-                    // Ligne en pointillés estompés à 50% entre le point de déviation et le point de retour
-                    const blockedLine = L.polyline(blockedLatLngs, {
-                        color: ligne.color,
-                        weight: 5,
-                        opacity: 0.50, // Estompé à 50%
-                        dashArray: '6, 8',
-                        lineCap: 'butt',
-                        lineJoin: 'round',
-                        pane: 'deviationsPane'
-                    });
-                    blockedLine.bindPopup(`<b>🚫 Tronçon Gare Viotte interrompu</b><br>Ligne ${ligne.ref} déviée (estompé à 50%)`);
-                    deviationsLayer.addLayer(blockedLine);
-                }
+                    // S'assurer que le calque de la ligne est actif sur le dock
+                    setLineState(ligne.ref, true);
 
-                // B. TRACÉ DE DÉVIATION : LIGNE CONTINUE PLEINE ET NETTE
-                if (Array.isArray(ligne.directions)) {
-                    ligne.directions.forEach(dir => {
-                        if (Array.isArray(dir.coordsDeviation) && dir.coordsDeviation.length > 1) {
-                            const devLatLngs = dir.coordsDeviation.map(c => [c[1], c[0]]);
+                    if (Array.isArray(ligne.directions)) {
+                        ligne.directions.forEach(dir => {
+                            const key = `${ligne.ref}_${dir.to}`;
+                            deviatedDirKeys.add(key);
 
-                            const casingLine = L.polyline(devLatLngs, {
-                                color: '#ffffff',
-                                weight: 8,
-                                opacity: 0.95,
-                                lineCap: 'round',
-                                lineJoin: 'round',
-                                pane: 'deviationsPane'
-                            });
+                            const rawCoords = rawLineCoords[key];
 
-                            const mainDevLine = L.polyline(devLatLngs, {
-                                color: ligne.color,
-                                weight: 5,
-                                opacity: 1.0,
-                                dashArray: null, // Ligne continue nette
-                                lineCap: 'round',
-                                lineJoin: 'round',
-                                pane: 'deviationsPane'
-                            });
+                            // A. DÉCOUPAGE PROPRE SUR LA VRAIE ROUTE (Supprime le tracé normal sur la section bloquée)
+                            if (Array.isArray(dir.coordsDeviation) && dir.coordsDeviation.length > 1 && Array.isArray(rawCoords) && rawCoords.length > 2) {
+                                const ptStart = dir.coordsDeviation[0];
+                                const ptEnd = dir.coordsDeviation[dir.coordsDeviation.length - 1];
 
-                            mainDevLine.bindPopup(`
-                                <b>🔄 Déviation Ligne ${ligne.ref} (${dir.to})</b><br>
-                                <b>Itinéraire :</b> ${dir.itineraire}<br>
-                                🛑 <b>Dernier arrêt :</b> ${dir.dernierArret}<br>
-                                ✅ <b>Reprise :</b> ${dir.prochainArret}
-                            `);
+                                const idxA = findClosestPointIndex(rawCoords, ptStart);
+                                const idxB = findClosestPointIndex(rawCoords, ptEnd);
+                                const iStart = Math.min(idxA, idxB);
+                                const iEnd = Math.max(idxA, idxB);
 
-                            deviationsLayer.addLayer(casingLine);
-                            deviationsLayer.addLayer(mainDevLine);
-                        }
+                                // 1. Tronçon SAIN AVANT déviation (continu normal)
+                                if (iStart > 0) {
+                                    const segBefore = rawCoords.slice(0, iStart + 1).map(c => [c[1], c[0]]);
+                                    deviationsLayer.addLayer(L.polyline(segBefore, {
+                                        color: ligne.color,
+                                        weight: 4.5,
+                                        opacity: 0.95,
+                                        pane: 'deviationsPane'
+                                    }));
+                                }
 
-                        // Pastille rouge pour arrêt non desservi
-                        if (dir.arretsNonDesservis && dir.arretsNonDesservis.includes("Gare Viotte")) {
-                            const stopViotteIcon = L.divIcon({
-                                className: 'leaflet-missed-stop-icon',
-                                html: `<div style="background:#dc2626; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.4);">✕</div>`,
-                                iconAnchor: [11, 11]
-                            });
-                            const missedMarker = L.marker([47.246176, 6.022169], {
-                                icon: stopViotteIcon,
-                                pane: 'stopsPane'
-                            }).bindTooltip("Arrêt Gare Viotte NON DESSERVI", {
-                                direction: 'top',
-                                offset: [0, -10],
-                                className: 'station-tooltip',
-                                sticky: true
-                            });
-                            deviationsLayer.addLayer(missedMarker);
-                        }
-                    });
-                }
-            });
+                                // 2. Tronçon BLOQUÉ SUR LA VRAIE ROUTE (pointillés estompés à 50%)
+                                const segBlocked = rawCoords.slice(iStart, iEnd + 1).map(c => [c[1], c[0]]);
+                                if (segBlocked.length > 1) {
+                                    deviationsLayer.addLayer(L.polyline(segBlocked, {
+                                        color: ligne.color,
+                                        weight: 5,
+                                        opacity: 0.50, // Estompé à 50%
+                                        dashArray: '6, 8', // Pointillés réguliers
+                                        lineCap: 'butt',
+                                        lineJoin: 'round',
+                                        pane: 'deviationsPane'
+                                    }).bindPopup(`<b>🚫 Tronçon neutralisé (${ligne.label} vers ${dir.to})</b><br>Déviation en cours via itinéraire bis`));
+                                }
+
+                                // 3. Tronçon SAIN APRÈS reprise (continu normal)
+                                if (iEnd < rawCoords.length - 1) {
+                                    const segAfter = rawCoords.slice(iEnd).map(c => [c[1], c[0]]);
+                                    deviationsLayer.addLayer(L.polyline(segAfter, {
+                                        color: ligne.color,
+                                        weight: 4.5,
+                                        opacity: 0.95,
+                                        pane: 'deviationsPane'
+                                    }));
+                                }
+
+                                // 4. CONTOURNEMENT DE DÉVIATION (ligne continue nette avec halo blanc)
+                                const devLatLngs = dir.coordsDeviation.map(c => [c[1], c[0]]);
+                                const casingLine = L.polyline(devLatLngs, {
+                                    color: '#ffffff',
+                                    weight: 8,
+                                    opacity: 0.95,
+                                    lineCap: 'round',
+                                    lineJoin: 'round',
+                                    pane: 'deviationsPane'
+                                });
+
+                                const mainDevLine = L.polyline(devLatLngs, {
+                                    color: ligne.color,
+                                    weight: 5,
+                                    opacity: 1.0,
+                                    dashArray: null,
+                                    lineCap: 'round',
+                                    lineJoin: 'round',
+                                    pane: 'deviationsPane'
+                                });
+
+                                mainDevLine.bindPopup(`
+                                    <b>🔄 Déviation Ligne ${ligne.ref} (vers ${dir.to})</b><br>
+                                    <b>Itinéraire :</b> ${dir.itineraire || 'Contournement'}<br>
+                                    🛑 <b>Dernier arrêt :</b> ${dir.dernierArret || '-'}<br>
+                                    ✅ <b>Reprise :</b> ${dir.prochainArret || '-'}
+                                `);
+
+                                deviationsLayer.addLayer(casingLine);
+                                deviationsLayer.addLayer(mainDevLine);
+                            }
+
+                            // Pastille rouge pour arrêt(s) non desservi(s)
+                            if (dir.arretsNonDesservis && dir.arretsNonDesservis.includes("Gare Viotte")) {
+                                const stopViotteIcon = L.divIcon({
+                                    className: 'leaflet-missed-stop-icon',
+                                    html: `<div style="background:#dc2626; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.4);">✕</div>`,
+                                    iconAnchor: [11, 11]
+                                });
+                                const missedMarker = L.marker([47.246176, 6.022169], {
+                                    icon: stopViotteIcon,
+                                    pane: 'stopsPane'
+                                }).bindTooltip("Arrêt Gare Viotte NON DESSERVI", {
+                                    direction: 'top',
+                                    offset: [0, -10],
+                                    className: 'station-tooltip',
+                                    sticky: true
+                                });
+                                deviationsLayer.addLayer(missedMarker);
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    // Gestion du masquage de l'itinéraire d'origine pour les directions déviées
+    Object.keys(dirLayers).forEach(key => {
+        const layerGroup = dirLayers[key];
+        if (layerGroup && layerGroup._mainLineLayer) {
+            if (deviatedDirKeys.has(key)) {
+                // Direction déviée : on masque complètement le tracé normal plein pour éviter toute superposition
+                layerGroup._mainLineLayer.setStyle({ opacity: 0 });
+            } else {
+                // Direction normale : tracé plein d'origine
+                layerGroup._mainLineLayer.setStyle({ opacity: 0.95 });
+            }
         }
     });
 }
@@ -1171,42 +1271,43 @@ function renderZoneDetailsPanel() {
 
         zone.lignesImpactees.forEach(ligne => {
             const card = document.createElement('div');
-            // Cartes pliées par défaut à l'affichage
             card.className = 'deviation-line-card collapsed';
 
             let directionsHtml = '';
-            ligne.directions.forEach(dir => {
-                directionsHtml += `
-                    <div class="direction-deviation-box">
-                        <div class="direction-header-title">
-                            <span>Sens ${dir.to}</span>
+            if (Array.isArray(ligne.directions)) {
+                ligne.directions.forEach(dir => {
+                    directionsHtml += `
+                        <div class="direction-deviation-box">
+                            <div class="direction-header-title">
+                                <span>Sens vers ${escapeHtml(dir.to)}</span>
+                            </div>
+                            <div class="stop-indicator-row">
+                                <span class="indicator-label">🛑 Dernier arrêt :</span>
+                                <span class="indicator-val-stop">${escapeHtml(dir.dernierArret || '-')}</span>
+                            </div>
+                            <div class="stop-indicator-row">
+                                <span class="indicator-label">❌ Non desservi :</span>
+                                <span class="indicator-val-missed">${escapeHtml(Array.isArray(dir.arretsNonDesservis) ? dir.arretsNonDesservis.join(', ') : (dir.arretsNonDesservis || '-'))}</span>
+                            </div>
+                            <div class="stop-indicator-row">
+                                <span class="indicator-label">✅ Prochain arrêt :</span>
+                                <span class="indicator-val-stop">${escapeHtml(dir.prochainArret || '-')}</span>
+                            </div>
+                            <div class="stop-indicator-row">
+                                <span class="indicator-label">🛣️ Itinéraire bis :</span>
+                                <span class="indicator-val-route">${escapeHtml(dir.itineraire || '-')}</span>
+                            </div>
                         </div>
-                        <div class="stop-indicator-row">
-                            <span class="indicator-label">🛑 Dernier arrêt :</span>
-                            <span class="indicator-val-stop">${dir.dernierArret}</span>
-                        </div>
-                        <div class="stop-indicator-row">
-                            <span class="indicator-label">❌ Non desservi :</span>
-                            <span class="indicator-val-missed">${dir.arretsNonDesservis.join(', ')}</span>
-                        </div>
-                        <div class="stop-indicator-row">
-                            <span class="indicator-label">✅ Prochain arrêt :</span>
-                            <span class="indicator-val-stop">${dir.prochainArret}</span>
-                        </div>
-                        <div class="stop-indicator-row">
-                            <span class="indicator-label">🛣️ Itinéraire bis :</span>
-                            <span class="indicator-val-route">${dir.itineraire}</span>
-                        </div>
-                    </div>
-                `;
-            });
+                    `;
+                });
+            }
 
             const clientInfoHtml = `
                 <div class="client-info-box">
                     <div class="info-box-title">
                         <span>📢 Message Information Voyageurs (SAEIV / SMS)</span>
                     </div>
-                    <div class="info-textarea-display" id="info-text-${zone.id}-${ligne.ref}">${ligne.texteInfoClient}</div>
+                    <div class="info-textarea-display" id="info-text-${zone.id}-${ligne.ref}">${escapeHtml(ligne.texteInfoClient || '')}</div>
                     <button type="button" class="btn-copy-info" onclick="copyClientInfo('info-text-${zone.id}-${ligne.ref}', this)">
                         <span>📋</span> Copier l'information client
                     </button>
@@ -1234,74 +1335,83 @@ function renderZoneDetailsPanel() {
     });
 }
 
-function copyClientInfo(textElementId, btnEl) {
-    const el = document.getElementById(textElementId);
-    if (!el) return;
-    const textToCopy = el.innerText || el.textContent;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            triggerCopySuccess(btnEl);
-        }).catch(() => {
-            fallbackCopy(textToCopy, btnEl);
-        });
-    } else {
-        fallbackCopy(textToCopy, btnEl);
-    }
-}
-
-function fallbackCopy(text, btnEl) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-        document.execCommand('copy');
-        triggerCopySuccess(btnEl);
-    } catch (e) {
-        console.warn('Copie manuelle nécessaire', e);
-    }
-    document.body.removeChild(ta);
-}
-
-function triggerCopySuccess(btnEl) {
-    if (!btnEl) return;
-    const originalHtml = btnEl.innerHTML;
-    btnEl.classList.add('copied');
-    btnEl.innerHTML = `<span>✅</span> Information copiée !`;
-    setTimeout(() => {
-        btnEl.classList.remove('copied');
-        btnEl.innerHTML = originalHtml;
-    }, 2500);
-}
-
 // =========================================================================
-// 📝 ACCÈS EN ÉCRITURE : ÉDITEUR MULTI-LIGNES DE ZONE D'IMPACT
+// 📝 ACCÈS EN ÉCRITURE : ÉDITEUR MULTI-LIGNES AVEC CHOIX ALLER / RETOUR
 // =========================================================================
 let currentEditorLignes = [];
-let drawingLigneIndex = null;
+let drawingTarget = null; // { lineIndex: 0, dirKey: 'aller' }
 
 function escapeHtml(str) {
     if (typeof str !== 'string') return str || '';
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function updateDeviationPreview() {
+    previewDeviationLayer.clearLayers();
+    if (!currentEditorLignes || currentEditorLignes.length === 0) return;
+
+    currentEditorLignes.forEach(lig => {
+        ['aller', 'retour'].forEach(dirKey => {
+            const d = lig[dirKey];
+            if (d && d.enabled && Array.isArray(d.coordsDeviation) && d.coordsDeviation.length > 1) {
+                const latLngs = d.coordsDeviation.map(c => [c[1], c[0]]);
+
+                const casing = L.polyline(latLngs, {
+                    color: '#ffffff',
+                    weight: 8,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    pane: 'deviationsPane'
+                });
+
+                const mainLine = L.polyline(latLngs, {
+                    color: lig.color,
+                    weight: 5,
+                    opacity: 1.0,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    pane: 'deviationsPane'
+                }).bindPopup(`<b>👁️ Aperçu Déviation</b><br>Ligne ${lig.label} (${d.label})<br>${d.itineraire || ''}`);
+
+                previewDeviationLayer.addLayer(casing);
+                previewDeviationLayer.addLayer(mainLine);
+            }
+        });
+    });
+}
+
 function syncEditorInputs() {
     currentEditorLignes.forEach((lig, idx) => {
-        const dEl = document.getElementById(`edit-dernier-${idx}`);
-        const pEl = document.getElementById(`edit-prochain-${idx}`);
-        const aEl = document.getElementById(`edit-arrets-non-${idx}`);
-        const iEl = document.getElementById(`edit-itineraire-${idx}`);
-        const mEl = document.getElementById(`edit-message-${idx}`);
+        ['aller', 'retour'].forEach(dirKey => {
+            const d = lig[dirKey];
+            if (!d) return;
 
-        if (dEl) lig.dernierArret = dEl.value.trim();
-        if (pEl) lig.prochainArret = pEl.value.trim();
-        if (aEl) {
-            lig.arretsNonDesservis = aEl.value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-        }
-        if (iEl) lig.itineraire = iEl.value.trim();
+            const dEl = document.getElementById(`edit-dernier-${dirKey}-${idx}`);
+            const pEl = document.getElementById(`edit-prochain-${dirKey}-${idx}`);
+            const aEl = document.getElementById(`edit-arrets-${dirKey}-${idx}`);
+            const iEl = document.getElementById(`edit-iti-${dirKey}-${idx}`);
+
+            if (dEl) d.dernierArret = dEl.value.trim();
+            if (pEl) d.prochainArret = pEl.value.trim();
+            if (aEl) {
+                d.arretsNonDesservis = aEl.value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            }
+            if (iEl) d.itineraire = iEl.value.trim();
+        });
+
+        const mEl = document.getElementById(`edit-message-${idx}`);
         if (mEl) lig.texteInfoClient = mEl.value.trim();
     });
+}
+
+function toggleDirChoice(lineIdx, dirKey, isChecked) {
+    syncEditorInputs();
+    if (currentEditorLignes[lineIdx] && currentEditorLignes[lineIdx][dirKey]) {
+        currentEditorLignes[lineIdx][dirKey].enabled = isChecked;
+    }
+    updateDeviationPreview();
+    renderEditorLignesContainer();
 }
 
 function renderEditorLignesContainer() {
@@ -1318,8 +1428,89 @@ function renderEditorLignesContainer() {
         const card = document.createElement('div');
         card.className = 'editor-ligne-card';
 
-        const nbPts = Array.isArray(lig.coordsDeviation) ? lig.coordsDeviation.length : 0;
-        const statusText = nbPts > 0 ? `✅ ${nbPts} points enregistrés` : 'Aucun tracé spécifique (cliquez pour dessiner)';
+        // Bloc Aller
+        let allerHtml = '';
+        if (lig.aller.enabled) {
+            const nbPtsAller = Array.isArray(lig.aller.coordsDeviation) ? lig.aller.coordsDeviation.length : 0;
+            const statusAller = nbPtsAller > 0 ? `✅ ${nbPtsAller} points enregistrés (visible sur la carte)` : 'Aucun tracé (cliquez pour dessiner)';
+
+            allerHtml = `
+                <div class="dir-block-card">
+                    <div class="dir-block-title">
+                        <span>Sens Aller ➔ Vers ${escapeHtml(lig.aller.label)}</span>
+                    </div>
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label>Dernier arrêt desservi :</label>
+                            <input type="text" id="edit-dernier-aller-${idx}" value="${escapeHtml(lig.aller.dernierArret || '')}" placeholder="Ex: Voirin">
+                        </div>
+                        <div class="form-group">
+                            <label>Premier arrêt repris :</label>
+                            <input type="text" id="edit-prochain-aller-${idx}" value="${escapeHtml(lig.aller.prochainArret || '')}" placeholder="Ex: Isenbart">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Arrêt(s) non desservi(s) :</label>
+                        <input type="text" id="edit-arrets-aller-${idx}" value="${escapeHtml(Array.isArray(lig.aller.arretsNonDesservis) ? lig.aller.arretsNonDesservis.join(', ') : (lig.aller.arretsNonDesservis || ''))}" placeholder="Ex: Gare Viotte">
+                    </div>
+                    <div class="form-group">
+                        <label>Itinéraire emprunté :</label>
+                        <input type="text" id="edit-iti-aller-${idx}" value="${escapeHtml(lig.aller.itineraire || '')}" placeholder="Ex: Place Leclerc > Av. Edgar Faure > Av. Foch">
+                    </div>
+                    <div class="draw-trace-box">
+                        <button type="button" class="btn-draw-deviation" onclick="startDrawingForLigneDir(${idx}, 'aller')">
+                            ✏️ Tracer le contournement [Aller vers ${escapeHtml(lig.aller.label)}] à la souris
+                        </button>
+                        <span id="trace-status-aller-${idx}" class="trace-status">${statusAller}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Bloc Retour
+        let retourHtml = '';
+        if (lig.retour.enabled) {
+            const nbPtsRetour = Array.isArray(lig.retour.coordsDeviation) ? lig.retour.coordsDeviation.length : 0;
+            const statusRetour = nbPtsRetour > 0 ? `✅ ${nbPtsRetour} points enregistrés (visible sur la carte)` : 'Aucun tracé (cliquez pour dessiner)';
+
+            retourHtml = `
+                <div class="dir-block-card">
+                    <div class="dir-block-title">
+                        <span>Sens Retour ➔ Vers ${escapeHtml(lig.retour.label)}</span>
+                    </div>
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label>Dernier arrêt desservi :</label>
+                            <input type="text" id="edit-dernier-retour-${idx}" value="${escapeHtml(lig.retour.dernierArret || '')}" placeholder="Ex: Isenbart">
+                        </div>
+                        <div class="form-group">
+                            <label>Premier arrêt repris :</label>
+                            <input type="text" id="edit-prochain-retour-${idx}" value="${escapeHtml(lig.retour.prochainArret || '')}" placeholder="Ex: Voirin">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Arrêt(s) non desservi(s) :</label>
+                        <input type="text" id="edit-arrets-retour-${idx}" value="${escapeHtml(Array.isArray(lig.retour.arretsNonDesservis) ? lig.retour.arretsNonDesservis.join(', ') : (lig.retour.arretsNonDesservis || ''))}" placeholder="Ex: Gare Viotte">
+                    </div>
+                    <div class="form-group">
+                        <label>Itinéraire emprunté :</label>
+                        <input type="text" id="edit-iti-retour-${idx}" value="${escapeHtml(lig.retour.itineraire || '')}" placeholder="Ex: Av. Foch > Av. Edgar Faure > Place Leclerc">
+                    </div>
+                    <div class="draw-trace-box">
+                        <button type="button" class="btn-draw-deviation" onclick="startDrawingForLigneDir(${idx}, 'retour')">
+                            ✏️ Tracer le contournement [Retour vers ${escapeHtml(lig.retour.label)}] à la souris
+                        </button>
+                        <span id="trace-status-retour-${idx}" class="trace-status">${statusRetour}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        let warningNoDir = (!lig.aller.enabled && !lig.retour.enabled) ? `
+            <div style="font-size:11.5px; color:#dc2626; font-weight:700; background:#fee2e2; padding:6px 10px; border-radius:6px;">
+                ⚠️ Cochez au moins l'Aller et/ou le Retour ci-dessus pour définir la déviation.
+            </div>
+        ` : '';
 
         card.innerHTML = `
             <div class="editor-ligne-header">
@@ -1327,42 +1518,33 @@ function renderEditorLignesContainer() {
                 <button type="button" class="btn-remove-ligne" onclick="removeLigneFromEditor(${idx})" title="Retirer cette ligne du secteur">✕ Retirer</button>
             </div>
 
-            <div class="form-row-2">
-                <div class="form-group">
-                    <label>Dernier arrêt desservi :</label>
-                    <input type="text" id="edit-dernier-${idx}" value="${escapeHtml(lig.dernierArret || '')}" placeholder="Ex: Voirin">
-                </div>
-                <div class="form-group">
-                    <label>Premier arrêt repris :</label>
-                    <input type="text" id="edit-prochain-${idx}" value="${escapeHtml(lig.prochainArret || '')}" placeholder="Ex: Isenbart">
-                </div>
+            <!-- Choix individuel Aller et/ou Retour -->
+            <div class="dir-selection-bar">
+                <span style="font-size:11px; font-weight:800; color:#4b5563;">Sens dévié(s) :</span>
+                <label class="dir-checkbox-label">
+                    <input type="checkbox" ${lig.aller.enabled ? 'checked' : ''} onchange="toggleDirChoice(${idx}, 'aller', this.checked)">
+                    <span>Aller : vers ${escapeHtml(lig.aller.label)}</span>
+                </label>
+                <label class="dir-checkbox-label">
+                    <input type="checkbox" ${lig.retour.enabled ? 'checked' : ''} onchange="toggleDirChoice(${idx}, 'retour', this.checked)">
+                    <span>Retour : vers ${escapeHtml(lig.retour.label)}</span>
+                </label>
             </div>
 
-            <div class="form-group">
-                <label>Arrêt(s) non desservi(s) :</label>
-                <input type="text" id="edit-arrets-non-${idx}" value="${escapeHtml(Array.isArray(lig.arretsNonDesservis) ? lig.arretsNonDesservis.join(', ') : (lig.arretsNonDesservis || ''))}" placeholder="Ex: Gare Viotte">
-            </div>
-
-            <div class="form-group">
-                <label>Itinéraire de contournement :</label>
-                <input type="text" id="edit-itineraire-${idx}" value="${escapeHtml(lig.itineraire || '')}" placeholder="Ex: Place Leclerc > Av. Edgar Faure > Av. Foch">
-            </div>
-
-            <div class="draw-trace-box">
-                <button type="button" class="btn-draw-deviation" onclick="startDrawingForLigneIndex(${idx})">
-                    ✏️ Tracer ou modifier le contournement de la ligne ${lig.label || lig.ref}
-                </button>
-                <span id="trace-status-${idx}" class="trace-status">${statusText}</span>
-            </div>
+            ${warningNoDir}
+            ${allerHtml}
+            ${retourHtml}
 
             <div class="form-group">
                 <label>Message Info Voyageurs (SAEIV / SMS) :</label>
-                <textarea id="edit-message-${idx}" rows="3" placeholder="Texte prédéfini pour l'information voyageurs...">${escapeHtml(lig.texteInfoClient || '')}</textarea>
+                <textarea id="edit-message-${idx}" rows="4" placeholder="Texte prédéfini pour l'information voyageurs...">${escapeHtml(lig.texteInfoClient || '')}</textarea>
             </div>
         `;
 
         container.appendChild(card);
     });
+
+    updateDeviationPreview();
 }
 
 function addLigneToEditor() {
@@ -1376,19 +1558,38 @@ function addLigneToEditor() {
         return;
     }
 
-    const cfgLigne = LIGNES_CONFIG.find(l => l.id === ref) || { label: ref, color: '#006AB3', textColor: '#FFFFFF' };
+    const cfgLigne = LIGNES_CONFIG.find(l => l.id === ref) || { label: ref, color: '#006AB3', textColor: '#FFFFFF', destinations: [] };
+    const dest1 = (cfgLigne.destinations && cfgLigne.destinations[0]) ? cfgLigne.destinations[0].to : "Aller";
+    const dest1Label = (cfgLigne.destinations && cfgLigne.destinations[0]) ? cfgLigne.destinations[0].label : "ALLER";
+    const dest2 = (cfgLigne.destinations && cfgLigne.destinations[1]) ? cfgLigne.destinations[1].to : "Retour";
+    const dest2Label = (cfgLigne.destinations && cfgLigne.destinations[1]) ? cfgLigne.destinations[1].label : "RETOUR";
+
     currentEditorLignes.push({
         ref: ref,
         label: cfgLigne.label,
         color: cfgLigne.color,
         textColor: cfgLigne.textColor,
-        dernierArret: '',
-        prochainArret: '',
-        arretsNonDesservis: [],
-        itineraire: '',
-        coordsDeviation: [],
-        texteInfoClient: `⚠️ INFO TRAFIC GINKO - Ligne ${cfgLigne.label}\nEn raison d'un blocage de secteur, la ligne est déviée.\nArrêt(s) non desservi(s) : ...\nReport aux arrêts : ...`,
-        directions: []
+        aller: {
+            enabled: true,
+            to: dest1,
+            label: dest1Label,
+            dernierArret: '',
+            prochainArret: '',
+            arretsNonDesservis: [],
+            itineraire: '',
+            coordsDeviation: []
+        },
+        retour: {
+            enabled: true,
+            to: dest2,
+            label: dest2Label,
+            dernierArret: '',
+            prochainArret: '',
+            arretsNonDesservis: [],
+            itineraire: '',
+            coordsDeviation: []
+        },
+        texteInfoClient: `⚠️ INFO TRAFIC GINKO - Ligne ${cfgLigne.label}\nEn raison d'un blocage de secteur, la ligne est déviée.\nArrêt(s) non desservi(s) : ...\nReport aux arrêts : ...`
     });
 
     renderEditorLignesContainer();
@@ -1397,16 +1598,18 @@ function addLigneToEditor() {
 function removeLigneFromEditor(index) {
     syncEditorInputs();
     currentEditorLignes.splice(index, 1);
+    updateDeviationPreview();
     renderEditorLignesContainer();
 }
 
-function startDrawingForLigneIndex(index) {
+function startDrawingForLigneDir(index, dirKey) {
     syncEditorInputs();
-    drawingLigneIndex = index;
+    drawingTarget = { lineIndex: index, dirKey: dirKey };
     const lig = currentEditorLignes[index];
-    const nomLigne = lig ? (lig.label || lig.ref) : '';
+    const targetDir = lig ? lig[dirKey] : null;
+    const destLabel = targetDir ? targetDir.label : '';
 
-    alert(`Tracez maintenant la déviation pour la ligne ${nomLigne} à la souris sur la carte.\nCliquez sur chaque virage de la rue, puis double-cliquez pour terminer le tracé.`);
+    alert(`Tracez maintenant la déviation pour la ligne ${lig.label} (Sens vers ${destLabel}) à la souris sur la carte.\nCliquez sur chaque virage de la rue, puis double-cliquez pour terminer le tracé.`);
     toggleDeviationPanel(false);
 
     map.pm.enableDraw('Line', {
@@ -1423,16 +1626,23 @@ function startDrawingForLigneIndex(index) {
                 Math.round(pt.lat * 100000) / 100000
             ]);
 
-            if (drawingLigneIndex !== null && currentEditorLignes[drawingLigneIndex]) {
-                currentEditorLignes[drawingLigneIndex].coordsDeviation = coords;
+            if (drawingTarget && currentEditorLignes[drawingTarget.lineIndex]) {
+                const curLig = currentEditorLignes[drawingTarget.lineIndex];
+                if (curLig[drawingTarget.dirKey]) {
+                    curLig[drawingTarget.dirKey].coordsDeviation = coords;
+                }
             }
 
             map.removeLayer(layer);
             map.off('pm:create', onDrawCreated);
-            drawingLigneIndex = null;
+            drawingTarget = null;
+
+            // Mise à jour de la prévisualisation en direct sur la carte !
+            updateDeviationPreview();
 
             toggleDeviationPanel(true);
             renderEditorLignesContainer();
+            showSyncToast("✅ Tracé capturé et prévisualisé en direct sur la carte.");
         }
     };
 
@@ -1450,7 +1660,7 @@ function openZoneEditor(zoneIdToEdit) {
     if (!viewList || !viewEdit) return;
 
     currentlyEditingZoneId = zoneIdToEdit || null;
-    drawingLigneIndex = null;
+    drawingTarget = null;
 
     viewList.style.display = 'none';
     viewEdit.style.display = 'block';
@@ -1460,7 +1670,6 @@ function openZoneEditor(zoneIdToEdit) {
     const descInput = document.getElementById('edit-zone-desc');
     const deleteBox = document.getElementById('editor-delete-box');
 
-    // Le bouton de suppression n'apparaît que si on modifie une zone existante
     if (deleteBox) {
         deleteBox.style.display = zoneIdToEdit ? 'block' : 'none';
     }
@@ -1476,19 +1685,41 @@ function openZoneEditor(zoneIdToEdit) {
 
             if (Array.isArray(zone.lignesImpactees)) {
                 zone.lignesImpactees.forEach(l => {
-                    const firstDir = (l.directions && l.directions[0]) ? l.directions[0] : {};
+                    const cfgLigne = LIGNES_CONFIG.find(cfg => cfg.id === l.ref) || { label: l.ref, destinations: [] };
+                    const dest1 = (cfgLigne.destinations && cfgLigne.destinations[0]) ? cfgLigne.destinations[0].to : "Aller";
+                    const dest1Label = (cfgLigne.destinations && cfgLigne.destinations[0]) ? cfgLigne.destinations[0].label : "ALLER";
+                    const dest2 = (cfgLigne.destinations && cfgLigne.destinations[1]) ? cfgLigne.destinations[1].to : "Retour";
+                    const dest2Label = (cfgLigne.destinations && cfgLigne.destinations[1]) ? cfgLigne.destinations[1].label : "RETOUR";
+
+                    const foundAller = (l.directions || []).find(d => d.to === dest1);
+                    const foundRetour = (l.directions || []).find(d => d.to === dest2);
+
                     currentEditorLignes.push({
                         ref: l.ref,
                         label: l.label,
                         color: l.color,
                         textColor: l.textColor,
-                        dernierArret: firstDir.dernierArret || '',
-                        prochainArret: firstDir.prochainArret || '',
-                        arretsNonDesservis: Array.isArray(firstDir.arretsNonDesservis) ? [...firstDir.arretsNonDesservis] : [],
-                        itineraire: firstDir.itineraire || '',
-                        coordsDeviation: Array.isArray(firstDir.coordsDeviation) ? [...firstDir.coordsDeviation] : [],
-                        texteInfoClient: l.texteInfoClient || '',
-                        tronconBloqueOrigine: l.tronconBloqueOrigine || []
+                        aller: {
+                            enabled: !!foundAller,
+                            to: dest1,
+                            label: dest1Label,
+                            dernierArret: foundAller ? (foundAller.dernierArret || '') : '',
+                            prochainArret: foundAller ? (foundAller.prochainArret || '') : '',
+                            arretsNonDesservis: foundAller && Array.isArray(foundAller.arretsNonDesservis) ? [...foundAller.arretsNonDesservis] : [],
+                            itineraire: foundAller ? (foundAller.itineraire || '') : '',
+                            coordsDeviation: foundAller && Array.isArray(foundAller.coordsDeviation) ? [...foundAller.coordsDeviation] : []
+                        },
+                        retour: {
+                            enabled: !!foundRetour,
+                            to: dest2,
+                            label: dest2Label,
+                            dernierArret: foundRetour ? (foundRetour.dernierArret || '') : '',
+                            prochainArret: foundRetour ? (foundRetour.prochainArret || '') : '',
+                            arretsNonDesservis: foundRetour && Array.isArray(foundRetour.arretsNonDesservis) ? [...foundRetour.arretsNonDesservis] : [],
+                            itineraire: foundRetour ? (foundRetour.itineraire || '') : '',
+                            coordsDeviation: foundRetour && Array.isArray(foundRetour.coordsDeviation) ? [...foundRetour.coordsDeviation] : []
+                        },
+                        texteInfoClient: l.texteInfoClient || ''
                     });
                 });
             }
@@ -1497,11 +1728,11 @@ function openZoneEditor(zoneIdToEdit) {
         }
     }
 
-    // Nouvelle zone vierge
     titleEl.textContent = 'Nouveau secteur d’impact';
     nomInput.value = '';
     descInput.value = '';
     currentEditorLignes = [];
+    previewDeviationLayer.clearLayers();
     renderEditorLignesContainer();
 }
 
@@ -1524,10 +1755,11 @@ function closeZoneEditor() {
     const viewEdit = document.getElementById('view-zone-editor');
     if (!viewList || !viewEdit) return;
 
+    previewDeviationLayer.clearLayers();
     viewEdit.style.display = 'none';
     viewList.style.display = 'block';
     currentlyEditingZoneId = null;
-    drawingLigneIndex = null;
+    drawingTarget = null;
 }
 
 function deleteCurrentZoneFromEditor() {
@@ -1549,7 +1781,7 @@ function deleteCurrentZoneFromEditor() {
         console.warn("Erreur sauvegarde :", e);
     }
 
-    // Diffusion de l'état mis à jour à tous les écrans
+    previewDeviationLayer.clearLayers();
     broadcastAppState();
 
     renderZonesList(allDeviationsConfig.zones);
@@ -1601,43 +1833,42 @@ function saveZoneFromEditor(event) {
         targetZone.description = desc;
     }
 
-    // Reconstitution des lignes impactées
+    // Reconstitution des lignes impactées avec directions Aller et/ou Retour
     targetZone.lignesImpactees = currentEditorLignes.map(lig => {
-        const cfgLigne = LIGNES_CONFIG.find(l => l.id === lig.ref) || { label: lig.ref, color: lig.color || '#006AB3', textColor: lig.textColor || '#FFFFFF' };
-        const dest1 = (cfgLigne.destinations && cfgLigne.destinations[0]) ? cfgLigne.destinations[0].to : "Aller";
-        const dest2 = (cfgLigne.destinations && cfgLigne.destinations[1]) ? cfgLigne.destinations[1].to : "Retour";
+        const directionsArray = [];
 
-        const usedCoords = lig.coordsDeviation || [];
+        if (lig.aller && lig.aller.enabled) {
+            directionsArray.push({
+                to: lig.aller.to,
+                dernierArret: lig.aller.dernierArret,
+                prochainArret: lig.aller.prochainArret,
+                arretsNonDesservis: lig.aller.arretsNonDesservis,
+                itineraire: lig.aller.itineraire,
+                coordsDeviation: lig.aller.coordsDeviation || []
+            });
+        }
+
+        if (lig.retour && lig.retour.enabled) {
+            directionsArray.push({
+                to: lig.retour.to,
+                dernierArret: lig.retour.dernierArret,
+                prochainArret: lig.retour.prochainArret,
+                arretsNonDesservis: lig.retour.arretsNonDesservis,
+                itineraire: lig.retour.itineraire,
+                coordsDeviation: lig.retour.coordsDeviation || []
+            });
+        }
 
         return {
             ref: lig.ref,
-            label: cfgLigne.label,
-            color: cfgLigne.color,
-            textColor: cfgLigne.textColor,
+            label: lig.label,
+            color: lig.color,
+            textColor: lig.textColor,
             texteInfoClient: lig.texteInfoClient,
-            tronconBloqueOrigine: lig.tronconBloqueOrigine || [],
-            directions: [
-                {
-                    to: dest1,
-                    dernierArret: lig.dernierArret,
-                    prochainArret: lig.prochainArret,
-                    arretsNonDesservis: lig.arretsNonDesservis,
-                    itineraire: lig.itineraire,
-                    coordsDeviation: usedCoords
-                },
-                {
-                    to: dest2,
-                    dernierArret: lig.prochainArret,
-                    prochainArret: lig.dernierArret,
-                    arretsNonDesservis: lig.arretsNonDesservis,
-                    itineraire: lig.itineraire,
-                    coordsDeviation: Array.isArray(usedCoords) ? [...usedCoords].reverse() : []
-                }
-            ]
+            directions: directionsArray
         };
     });
 
-    // Sauvegarde immédiate dans localStorage (accès direct en écriture)
     try {
         localStorage.setItem('besancon_live_deviations', JSON.stringify(allDeviationsConfig));
         localStorage.setItem('besancon_live_active_zones', JSON.stringify(Array.from(activeZonesSet)));
@@ -1645,7 +1876,7 @@ function saveZoneFromEditor(event) {
         console.warn("Erreur sauvegarde localStorage :", e);
     }
 
-    // Diffusion immédiate de l'affichage unique sur tous les écrans
+    previewDeviationLayer.clearLayers();
     broadcastAppState();
 
     renderZonesList(allDeviationsConfig.zones);

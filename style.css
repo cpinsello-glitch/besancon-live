@@ -518,11 +518,25 @@ html {
 
 .deviation-panel-header {
     display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(245, 245, 247, 0.95);
+}
+
+.panel-header-line-1 {
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 18px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    background: rgba(245, 245, 247, 0.8);
+    width: 100%;
+}
+
+.panel-header-line-2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
 }
 
 .panel-header-title {
@@ -859,14 +873,19 @@ input:checked + .slider-round:before {
 .info-textarea-display {
     background: #ffffff;
     border: 1px solid #fcd34d;
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-family: 'Roboto', monospace !important;
-    font-size: 11px;
-    line-height: 1.45;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'Roboto', sans-serif !important;
+    font-size: 12px;
+    line-height: 1.55;
     color: #1f2937;
     white-space: pre-wrap;
+    word-break: break-word;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     user-select: all;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .btn-copy-info {
@@ -1079,6 +1098,64 @@ input:checked + .slider-round:before {
 
 .btn-remove-ligne:hover {
     background: #fecaca;
+}
+
+/* Sélection et configuration Aller / Retour individuelle */
+.dir-selection-bar {
+    display: flex;
+    gap: 14px;
+    background: #f3f4f6;
+    padding: 8px 10px;
+    border-radius: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.dir-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1f2937;
+    cursor: pointer;
+}
+
+.dir-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.dir-block-card {
+    background: #ffffff;
+    border: 1.5px solid #dbeafe;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dir-block-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: #1d4ed8;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed #bfdbfe;
+}
+
+.form-group textarea {
+    min-height: 100px;
+    height: auto;
+    resize: vertical;
+    line-height: 1.45;
+    font-size: 12px;
+    font-family: 'Roboto', sans-serif !important;
 }
 
 .add-ligne-action-box {

@@ -69,36 +69,29 @@
     <!-- 📋 PANNEAU LATÉRAL DROIT : ZONES D'IMPACT, DÉVIATIONS & ÉDITION -->
     <aside id="deviation-panel" class="deviation-panel">
         <div class="deviation-panel-header">
-            <div class="panel-header-title">
-                <span class="panel-icon">⚠️</span>
-                <h2 id="panel-title-text">Zones d'impact & Déviations</h2>
+            <!-- Ligne 1 : Titre "Zones d'impact et de manifestations" + Bouton Fermer -->
+            <div class="panel-header-line-1">
+                <div class="panel-header-title">
+                    <span class="panel-icon">⚠️</span>
+                    <h2 id="panel-title-text">Zones d'impact et de manifestations</h2>
+                </div>
+                <button type="button" class="btn-close-panel" id="btn-close-deviation-panel" onclick="toggleDeviationPanel(false)" title="Fermer le panneau">✕</button>
             </div>
-            <div class="panel-header-actions">
+            <!-- Ligne 2 : Les 3 boutons (1. La main, 2. Admin, 3. Nouveau) -->
+            <div class="panel-header-line-2">
+                <button type="button" class="btn-master-toggle" id="btn-master-toggle" onclick="toggleMasterRole()" title="Prendre la main pour piloter l'affichage sur tous les écrans">
+                    👑 Prendre la main
+                </button>
                 <button type="button" class="btn-admin-access" id="btn-admin-access" onclick="toggleAdminAccess()" title="Accès administrateur (Code PIN)">
                     🔒 Admin
                 </button>
                 <button type="button" class="btn-panel-action" id="btn-add-zone" onclick="openZoneEditor()" title="Créer un nouveau secteur d'impact" style="display: none;">
                     <span class="plus-yellow">+</span> Nouveau
                 </button>
-                <button type="button" class="btn-close-panel" id="btn-close-deviation-panel" onclick="toggleDeviationPanel(false)" title="Fermer le panneau">✕</button>
             </div>
         </div>
 
         <div class="deviation-panel-body">
-            <!-- CONTRÔLE DE SESSION MAÎTRE / LECTURE SEULE -->
-            <div class="session-control-bar" id="session-control-bar">
-                <div class="session-status-info">
-                    <span class="session-dot dot-readonly" id="session-dot"></span>
-                    <div class="session-text-group">
-                        <span class="session-status-text" id="session-status-text">Session en lecture seule</span>
-                        <span class="session-subtext" id="session-subtext">Poste : <strong id="session-my-id">...</strong></span>
-                    </div>
-                </div>
-                <button type="button" class="btn-master-toggle" id="btn-master-toggle" onclick="toggleMasterRole()" title="Prendre la main pour piloter l'affichage sur tous les écrans">
-                    👑 Prendre la main
-                </button>
-            </div>
-
             <!-- VUE 1 : CONSULTATION & ACTIVATION OPÉRATIONNELLE -->
             <div id="view-zones-list" class="panel-view-section">
                 <div class="zone-selector-box">

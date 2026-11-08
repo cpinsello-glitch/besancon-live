@@ -16,14 +16,6 @@
           "label": "Ligne 3",
           "color": "#006AB3",
           "textColor": "#FFFFFF",
-          "tronconBloqueOrigine": [
-            [6.01385, 47.24225],
-            [6.01650, 47.24420],
-            [6.01950, 47.24570],
-            [6.02217, 47.24618],
-            [6.02380, 47.24480],
-            [6.02526, 47.24277]
-          ],
           "directions": [
             {
               "to": "8 Septembre",
@@ -83,13 +75,6 @@
           "label": "Ligne 5",
           "color": "#1FA22E",
           "textColor": "#FFFFFF",
-          "tronconBloqueOrigine": [
-            [6.01983, 47.24692],
-            [6.02100, 47.24650],
-            [6.02217, 47.24618],
-            [6.02380, 47.24480],
-            [6.02526, 47.24277]
-          ],
           "directions": [
             {
               "to": "Bregille",
