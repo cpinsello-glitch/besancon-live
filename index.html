@@ -96,12 +96,6 @@
                 <div id="zone-details-container" class="zone-details-container">
                     <!-- Détails lignes et textes à copier -->
                 </div>
-
-                <div class="panel-footer-actions">
-                    <button type="button" class="btn-export-json" onclick="exportDeviationsJson()" title="Télécharger le fichier deviations.json pour sauvegarde">
-                        📥 Exporter les déviations (JSON)
-                    </button>
-                </div>
             </div>
 
             <!-- VUE 2 : ÉDITEUR DE ZONE D'IMPACT EN ÉCRITURE -->
@@ -123,11 +117,18 @@
                     </div>
 
                     <div class="editor-divider"></div>
-                    <div class="editor-subhead">Ligne impactée & Déviation</div>
+                    <div class="editor-subhead-row">
+                        <span class="editor-subhead">LIGNES IMPACTÉES PAR CE SECTEUR</span>
+                    </div>
 
-                    <div class="form-group">
-                        <label>Ligne concernée :</label>
-                        <select id="edit-ligne-select" onchange="onEditorLigneChanged()">
+                    <!-- Liste dynamique des lignes impactées (chacune avec ses détails spécifiques) -->
+                    <div id="editor-lignes-container" class="editor-lignes-container">
+                        <!-- Généré dynamiquement -->
+                    </div>
+
+                    <!-- Sélecteur pour ajouter une ligne au secteur -->
+                    <div class="add-ligne-action-box">
+                        <select id="select-add-ligne-choice">
                             <option value="L3">Ligne 3</option>
                             <option value="L5">Ligne 5</option>
                             <option value="L4">Ligne 4</option>
@@ -143,44 +144,13 @@
                             <option value="CITA">Citadelle</option>
                             <option value="PlanB">Plan B</option>
                         </select>
-                    </div>
-
-                    <div class="form-row-2">
-                        <div class="form-group">
-                            <label>Dernier arrêt desservi :</label>
-                            <input type="text" id="edit-dernier-arret" required placeholder="Ex: Voirin">
-                        </div>
-                        <div class="form-group">
-                            <label>Premier arrêt repris :</label>
-                            <input type="text" id="edit-prochain-arret" required placeholder="Ex: Isenbart">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Arrêt(s) non desservi(s) :</label>
-                        <input type="text" id="edit-arrets-non-desservis" placeholder="Ex: Gare Viotte">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Itinéraire de déviation emprunté :</label>
-                        <input type="text" id="edit-itineraire-desc" placeholder="Ex: Place Leclerc > Av. Edgar Faure > Av. Foch">
-                    </div>
-
-                    <div class="form-group draw-trace-box">
-                        <label>Tracé GPS du contournement :</label>
-                        <button type="button" class="btn-draw-deviation" id="btn-draw-deviation-trace" onclick="startDrawingDeviationTrace()">
-                            ✏️ Tracer ou modifier le contournement à la souris sur la carte
+                        <button type="button" class="btn-add-ligne-row" onclick="addLigneToEditor()">
+                            ➕ Ajouter cette ligne
                         </button>
-                        <span id="trace-status-label" class="trace-status">Tracé actuel conservé</span>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Message Info Voyageurs (SAEIV / SMS) :</label>
-                        <textarea id="edit-message-client" rows="4" placeholder="Texte prédéfini pour l'information voyageurs..."></textarea>
                     </div>
 
                     <div class="form-actions-bar">
-                        <button type="submit" class="btn-save-zone">💾 Enregistrer le secteur</button>
+                        <button type="submit" class="btn-save-zone">💾 Enregistrer le secteur et ses lignes</button>
                         <button type="button" class="btn-cancel-edit" onclick="closeZoneEditor()">Annuler</button>
                     </div>
                 </form>

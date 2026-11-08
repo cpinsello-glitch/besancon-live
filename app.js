@@ -863,15 +863,176 @@ function triggerCopySuccess(btnEl) {
 }
 
 // =========================================================================
-// 📝 ACCÈS EN ÉCRITURE : ÉDITEUR DE ZONE D'IMPACT & DÉVIATIONS
+// 📝 ACCÈS EN ÉCRITURE : ÉDITEUR MULTI-LIGNES DE ZONE D'IMPACT
 // =========================================================================
+let currentEditorLignes = [];
+let drawingLigneIndex = null;
+
+function escapeHtml(str) {
+    if (typeof str !== 'string') return str || '';
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function syncEditorInputs() {
+    currentEditorLignes.forEach((lig, idx) => {
+        const dEl = document.getElementById(`edit-dernier-${idx}`);
+        const pEl = document.getElementById(`edit-prochain-${idx}`);
+        const aEl = document.getElementById(`edit-arrets-non-${idx}`);
+        const iEl = document.getElementById(`edit-itineraire-${idx}`);
+        const mEl = document.getElementById(`edit-message-${idx}`);
+
+        if (dEl) lig.dernierArret = dEl.value.trim();
+        if (pEl) lig.prochainArret = pEl.value.trim();
+        if (aEl) {
+            lig.arretsNonDesservis = aEl.value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        }
+        if (iEl) lig.itineraire = iEl.value.trim();
+        if (mEl) lig.texteInfoClient = mEl.value.trim();
+    });
+}
+
+function renderEditorLignesContainer() {
+    const container = document.getElementById('editor-lignes-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (currentEditorLignes.length === 0) {
+        container.innerHTML = `<div style="font-size:12px; color:#6b7280; font-style:italic; padding:6px 0;">Aucune ligne associée à cette zone pour le moment. Sélectionnez une ligne ci-dessous et cliquez sur "Ajouter cette ligne".</div>`;
+        return;
+    }
+
+    currentEditorLignes.forEach((lig, idx) => {
+        const card = document.createElement('div');
+        card.className = 'editor-ligne-card';
+
+        const nbPts = Array.isArray(lig.coordsDeviation) ? lig.coordsDeviation.length : 0;
+        const statusText = nbPts > 0 ? `✅ ${nbPts} points enregistrés` : 'Aucun tracé spécifique (cliquez pour dessiner)';
+
+        card.innerHTML = `
+            <div class="editor-ligne-header">
+                <span class="editor-ligne-badge" style="background:${lig.color}; color:${lig.textColor};">${lig.label || lig.ref}</span>
+                <button type="button" class="btn-remove-ligne" onclick="removeLigneFromEditor(${idx})" title="Retirer cette ligne du secteur">✕ Retirer</button>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label>Dernier arrêt desservi :</label>
+                    <input type="text" id="edit-dernier-${idx}" value="${escapeHtml(lig.dernierArret || '')}" placeholder="Ex: Voirin">
+                </div>
+                <div class="form-group">
+                    <label>Premier arrêt repris :</label>
+                    <input type="text" id="edit-prochain-${idx}" value="${escapeHtml(lig.prochainArret || '')}" placeholder="Ex: Isenbart">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Arrêt(s) non desservi(s) :</label>
+                <input type="text" id="edit-arrets-non-${idx}" value="${escapeHtml(Array.isArray(lig.arretsNonDesservis) ? lig.arretsNonDesservis.join(', ') : (lig.arretsNonDesservis || ''))}" placeholder="Ex: Gare Viotte">
+            </div>
+
+            <div class="form-group">
+                <label>Itinéraire de contournement :</label>
+                <input type="text" id="edit-itineraire-${idx}" value="${escapeHtml(lig.itineraire || '')}" placeholder="Ex: Place Leclerc > Av. Edgar Faure > Av. Foch">
+            </div>
+
+            <div class="draw-trace-box">
+                <button type="button" class="btn-draw-deviation" onclick="startDrawingForLigneIndex(${idx})">
+                    ✏️ Tracer ou modifier le contournement de la ligne ${lig.label || lig.ref}
+                </button>
+                <span id="trace-status-${idx}" class="trace-status">${statusText}</span>
+            </div>
+
+            <div class="form-group">
+                <label>Message Info Voyageurs (SAEIV / SMS) :</label>
+                <textarea id="edit-message-${idx}" rows="3" placeholder="Texte prédéfini pour l'information voyageurs...">${escapeHtml(lig.texteInfoClient || '')}</textarea>
+            </div>
+        `;
+
+        container.appendChild(card);
+    });
+}
+
+function addLigneToEditor() {
+    syncEditorInputs();
+    const sel = document.getElementById('select-add-ligne-choice');
+    if (!sel) return;
+    const ref = sel.value;
+
+    if (currentEditorLignes.some(l => l.ref === ref)) {
+        alert(`La ligne ${ref} est déjà ajoutée dans ce secteur.`);
+        return;
+    }
+
+    const cfgLigne = LIGNES_CONFIG.find(l => l.id === ref) || { label: ref, color: '#006AB3', textColor: '#FFFFFF' };
+    currentEditorLignes.push({
+        ref: ref,
+        label: cfgLigne.label,
+        color: cfgLigne.color,
+        textColor: cfgLigne.textColor,
+        dernierArret: '',
+        prochainArret: '',
+        arretsNonDesservis: [],
+        itineraire: '',
+        coordsDeviation: [],
+        texteInfoClient: `⚠️ INFO TRAFIC GINKO - Ligne ${cfgLigne.label}\nEn raison d'un blocage de secteur, la ligne est déviée.\nArrêt(s) non desservi(s) : ...\nReport aux arrêts : ...`,
+        directions: []
+    });
+
+    renderEditorLignesContainer();
+}
+
+function removeLigneFromEditor(index) {
+    syncEditorInputs();
+    currentEditorLignes.splice(index, 1);
+    renderEditorLignesContainer();
+}
+
+function startDrawingForLigneIndex(index) {
+    syncEditorInputs();
+    drawingLigneIndex = index;
+    const lig = currentEditorLignes[index];
+    const nomLigne = lig ? (lig.label || lig.ref) : '';
+
+    alert(`Tracez maintenant la déviation pour la ligne ${nomLigne} à la souris sur la carte.\nCliquez sur chaque virage de la rue, puis double-cliquez pour terminer le tracé.`);
+    toggleDeviationPanel(false);
+
+    map.pm.enableDraw('Line', {
+        snappable: true,
+        snapDistance: 20
+    });
+
+    const onDrawCreated = function (e) {
+        const layer = e.layer;
+        if (layer && layer.getLatLngs) {
+            const rawPts = layer.getLatLngs();
+            const coords = rawPts.map(pt => [
+                Math.round(pt.lng * 100000) / 100000,
+                Math.round(pt.lat * 100000) / 100000
+            ]);
+
+            if (drawingLigneIndex !== null && currentEditorLignes[drawingLigneIndex]) {
+                currentEditorLignes[drawingLigneIndex].coordsDeviation = coords;
+            }
+
+            map.removeLayer(layer);
+            map.off('pm:create', onDrawCreated);
+            drawingLigneIndex = null;
+
+            toggleDeviationPanel(true);
+            renderEditorLignesContainer();
+        }
+    };
+
+    map.once('pm:create', onDrawCreated);
+}
+
 function openZoneEditor(zoneIdToEdit) {
     const viewList = document.getElementById('view-zones-list');
     const viewEdit = document.getElementById('view-zone-editor');
     if (!viewList || !viewEdit) return;
 
     currentlyEditingZoneId = zoneIdToEdit || null;
-    tempCapturedDeviationCoords = null;
+    drawingLigneIndex = null;
 
     viewList.style.display = 'none';
     viewEdit.style.display = 'block';
@@ -879,15 +1040,8 @@ function openZoneEditor(zoneIdToEdit) {
     const titleEl = document.getElementById('editor-title-label');
     const nomInput = document.getElementById('edit-zone-nom');
     const descInput = document.getElementById('edit-zone-desc');
-    const ligneSelect = document.getElementById('edit-ligne-select');
-    const dernierInput = document.getElementById('edit-dernier-arret');
-    const prochainInput = document.getElementById('edit-prochain-arret');
-    const arretsNonDesservisInput = document.getElementById('edit-arrets-non-desservis');
-    const itineraireInput = document.getElementById('edit-itineraire-desc');
-    const messageClientText = document.getElementById('edit-message-client');
-    const traceStatus = document.getElementById('trace-status-label');
 
-    if (traceStatus) traceStatus.textContent = 'Tracé actuel conservé';
+    currentEditorLignes = [];
 
     if (zoneIdToEdit && allDeviationsConfig) {
         const zone = allDeviationsConfig.zones.find(z => z.id === zoneIdToEdit);
@@ -896,16 +1050,25 @@ function openZoneEditor(zoneIdToEdit) {
             nomInput.value = zone.nom || '';
             descInput.value = zone.description || '';
 
-            const firstLigne = zone.lignesImpactees && zone.lignesImpactees[0] ? zone.lignesImpactees[0] : null;
-            if (firstLigne) {
-                ligneSelect.value = firstLigne.ref;
-                const firstDir = firstLigne.directions && firstLigne.directions[0] ? firstLigne.directions[0] : {};
-                dernierInput.value = firstDir.dernierArret || '';
-                prochainInput.value = firstDir.prochainArret || '';
-                arretsNonDesservisInput.value = (firstDir.arretsNonDesservis || []).join(', ');
-                itineraireInput.value = firstDir.itineraire || '';
-                messageClientText.value = firstLigne.texteInfoClient || '';
+            if (Array.isArray(zone.lignesImpactees)) {
+                zone.lignesImpactees.forEach(l => {
+                    const firstDir = (l.directions && l.directions[0]) ? l.directions[0] : {};
+                    currentEditorLignes.push({
+                        ref: l.ref,
+                        label: l.label,
+                        color: l.color,
+                        textColor: l.textColor,
+                        dernierArret: firstDir.dernierArret || '',
+                        prochainArret: firstDir.prochainArret || '',
+                        arretsNonDesservis: Array.isArray(firstDir.arretsNonDesservis) ? [...firstDir.arretsNonDesservis] : [],
+                        itineraire: firstDir.itineraire || '',
+                        coordsDeviation: Array.isArray(firstDir.coordsDeviation) ? [...firstDir.coordsDeviation] : [],
+                        texteInfoClient: l.texteInfoClient || '',
+                        tronconBloqueOrigine: l.tronconBloqueOrigine || []
+                    });
+                });
             }
+            renderEditorLignesContainer();
             return;
         }
     }
@@ -914,11 +1077,8 @@ function openZoneEditor(zoneIdToEdit) {
     titleEl.textContent = 'Nouveau secteur d’impact';
     nomInput.value = '';
     descInput.value = '';
-    dernierInput.value = '';
-    prochainInput.value = '';
-    arretsNonDesservisInput.value = '';
-    itineraireInput.value = '';
-    messageClientText.value = '';
+    currentEditorLignes = [];
+    renderEditorLignesContainer();
 }
 
 function editCurrentSelectedZone() {
@@ -939,55 +1099,12 @@ function closeZoneEditor() {
     viewEdit.style.display = 'none';
     viewList.style.display = 'block';
     currentlyEditingZoneId = null;
-    tempCapturedDeviationCoords = null;
-}
-
-function onEditorLigneChanged() {
-    const sel = document.getElementById('edit-ligne-select');
-    if (!sel) return;
-    const ref = sel.value;
-    const cfg = LIGNES_CONFIG.find(l => l.id === ref);
-    if (cfg) {
-        document.getElementById('edit-message-client').value =
-            `⚠️ INFO TRAFIC GINKO - Ligne ${cfg.label}\nEn raison d'un blocage de secteur, la ligne est déviée.\nArrêt(s) non desservi(s) : ...\nReport aux arrêts : ...`;
-    }
-}
-
-// Outil pour tracer à la souris sur la carte et capturer les points
-function startDrawingDeviationTrace() {
-    alert("Tracez maintenant la déviation à la souris sur la carte avec le crayon. Cliquez sur chaque virage de la rue, puis double-cliquez pour terminer.");
-    toggleDeviationPanel(false);
-
-    map.pm.enableDraw('Line', {
-        snappable: true,
-        snapDistance: 20
-    });
-
-    const onDrawCreated = function (e) {
-        const layer = e.layer;
-        if (layer && layer.getLatLngs) {
-            const rawPts = layer.getLatLngs();
-            tempCapturedDeviationCoords = rawPts.map(pt => [
-                Math.round(pt.lng * 100000) / 100000,
-                Math.round(pt.lat * 100000) / 100000
-            ]);
-
-            map.removeLayer(layer);
-            map.off('pm:create', onDrawCreated);
-
-            toggleDeviationPanel(true);
-            const traceStatus = document.getElementById('trace-status-label');
-            if (traceStatus) {
-                traceStatus.textContent = `✅ Tracé capturé (${tempCapturedDeviationCoords.length} points enregistrés) !`;
-            }
-        }
-    };
-
-    map.once('pm:create', onDrawCreated);
+    drawingLigneIndex = null;
 }
 
 function saveZoneFromEditor(event) {
     if (event) event.preventDefault();
+    syncEditorInputs();
 
     if (!allDeviationsConfig) {
         allDeviationsConfig = { zones: [] };
@@ -995,17 +1112,11 @@ function saveZoneFromEditor(event) {
 
     const nom = document.getElementById('edit-zone-nom').value.trim();
     const desc = document.getElementById('edit-zone-desc').value.trim();
-    const ligneRef = document.getElementById('edit-ligne-select').value;
-    const dernierArret = document.getElementById('edit-dernier-arret').value.trim();
-    const prochainArret = document.getElementById('edit-prochain-arret').value.trim();
-    const nonDesservisArr = document.getElementById('edit-arrets-non-desservis').value
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-    const itineraire = document.getElementById('edit-itineraire-desc').value.trim();
-    const messageClient = document.getElementById('edit-message-client').value.trim();
 
-    const cfgLigne = LIGNES_CONFIG.find(l => l.id === ligneRef) || { label: ligneRef, color: '#006AB3', textColor: '#FFFFFF' };
+    if (!nom) {
+        alert("Veuillez renseigner un nom pour le secteur.");
+        return;
+    }
 
     let targetZone = null;
     if (currentlyEditingZoneId) {
@@ -1032,46 +1143,41 @@ function saveZoneFromEditor(event) {
         targetZone.description = desc;
     }
 
-    // Mise à jour de la ligne dans la zone
-    let targetLigne = targetZone.lignesImpactees.find(l => l.ref === ligneRef);
-    if (!targetLigne) {
-        targetLigne = {
-            ref: ligneRef,
+    // Reconstitution des lignes impactées
+    targetZone.lignesImpactees = currentEditorLignes.map(lig => {
+        const cfgLigne = LIGNES_CONFIG.find(l => l.id === lig.ref) || { label: lig.ref, color: lig.color || '#006AB3', textColor: lig.textColor || '#FFFFFF' };
+        const dest1 = (cfgLigne.destinations && cfgLigne.destinations[0]) ? cfgLigne.destinations[0].to : "Aller";
+        const dest2 = (cfgLigne.destinations && cfgLigne.destinations[1]) ? cfgLigne.destinations[1].to : "Retour";
+
+        const usedCoords = lig.coordsDeviation || [];
+
+        return {
+            ref: lig.ref,
             label: cfgLigne.label,
             color: cfgLigne.color,
             textColor: cfgLigne.textColor,
-            directions: []
+            texteInfoClient: lig.texteInfoClient,
+            tronconBloqueOrigine: lig.tronconBloqueOrigine || [],
+            directions: [
+                {
+                    to: dest1,
+                    dernierArret: lig.dernierArret,
+                    prochainArret: lig.prochainArret,
+                    arretsNonDesservis: lig.arretsNonDesservis,
+                    itineraire: lig.itineraire,
+                    coordsDeviation: usedCoords
+                },
+                {
+                    to: dest2,
+                    dernierArret: lig.prochainArret,
+                    prochainArret: lig.dernierArret,
+                    arretsNonDesservis: lig.arretsNonDesservis,
+                    itineraire: lig.itineraire,
+                    coordsDeviation: Array.isArray(usedCoords) ? [...usedCoords].reverse() : []
+                }
+            ]
         };
-        targetZone.lignesImpactees.push(targetLigne);
-    }
-
-    targetLigne.texteInfoClient = messageClient;
-
-    // Mise à jour des directions
-    const usedCoords = tempCapturedDeviationCoords ||
-        (targetLigne.directions && targetLigne.directions[0] ? targetLigne.directions[0].coordsDeviation : []);
-
-    const dest1 = cfgLigne.destinations && cfgLigne.destinations[0] ? cfgLigne.destinations[0].to : "Aller";
-    const dest2 = cfgLigne.destinations && cfgLigne.destinations[1] ? cfgLigne.destinations[1].to : "Retour";
-
-    targetLigne.directions = [
-        {
-            to: dest1,
-            dernierArret: dernierArret,
-            prochainArret: prochainArret,
-            arretsNonDesservis: nonDesservisArr,
-            itineraire: itineraire,
-            coordsDeviation: usedCoords
-        },
-        {
-            to: dest2,
-            dernierArret: prochainArret,
-            prochainArret: dernierArret,
-            arretsNonDesservis: nonDesservisArr,
-            itineraire: itineraire,
-            coordsDeviation: Array.isArray(usedCoords) ? [...usedCoords].reverse() : []
-        }
-    ];
+    });
 
     // Sauvegarde immédiate dans localStorage (accès direct en écriture)
     try {
@@ -1085,21 +1191,7 @@ function saveZoneFromEditor(event) {
     renderZoneDetailsPanel();
     closeZoneEditor();
 
-    alert("Zone d'impact enregistrée avec succès !");
-}
-
-function exportDeviationsJson() {
-    if (!allDeviationsConfig) return;
-    const str = JSON.stringify(allDeviationsConfig, null, 2);
-    const blob = new Blob([str], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'deviations.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    alert("Zone d'impact et ensemble de ses lignes enregistrées avec succès !");
 }
 
 // =========================================================================
