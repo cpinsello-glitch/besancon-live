@@ -582,11 +582,11 @@ function renderDeviationsOnMap() {
                         if (Array.isArray(dir.coordsDeviation) && dir.coordsDeviation.length > 1) {
                             const devLatLngs = dir.coordsDeviation.map(c => [c[1], c[0]]);
 
-                            // Ligne de déviation avec double tracé (bordure blanche + bleu intense L3)
+                            // Ligne de déviation avec double tracé (bordure blanche + couleur intense de la ligne, continu net)
                             const casingLine = L.polyline(devLatLngs, {
                                 color: '#ffffff',
                                 weight: 8,
-                                opacity: 0.9,
+                                opacity: 0.95,
                                 lineCap: 'round',
                                 lineJoin: 'round',
                                 pane: 'deviationsPane'
@@ -596,7 +596,7 @@ function renderDeviationsOnMap() {
                                 color: ligne.color,
                                 weight: 5,
                                 opacity: 1.0,
-                                dashArray: '10, 6',
+                                dashArray: null, // Ligne continue nette suivant fidèlement la route
                                 lineCap: 'round',
                                 lineJoin: 'round',
                                 pane: 'deviationsPane'
@@ -692,9 +692,14 @@ function renderZoneDetailsPanel() {
             `;
 
             card.innerHTML = `
-                <div class="line-card-header">
-                    <span class="line-badge-lg" style="background-color:${ligne.color}; color:${ligne.textColor};">${ligne.label}</span>
-                    <span class="line-status-alert">DÉVIATION EN COURS</span>
+                <div class="line-card-header" onclick="this.parentElement.classList.toggle('collapsed')" title="Cliquer pour replier/déplier cette ligne">
+                    <div class="header-left-group">
+                        <span class="line-badge-lg" style="background-color:${ligne.color}; color:${ligne.textColor};">${ligne.label}</span>
+                        <span class="line-status-alert">DÉVIATION EN COURS</span>
+                    </div>
+                    <div class="header-right-group">
+                        <span class="chevron-toggle">▼</span>
+                    </div>
                 </div>
                 <div class="line-card-content">
                     ${directionsHtml}
