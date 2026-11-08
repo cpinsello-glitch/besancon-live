@@ -488,13 +488,14 @@ html {
 }
 
 /* =========================================================================
-   📋 PANNEAU LATÉRAL GAUCHE (DÉVIATIONS & INFO CLIENT)
+   📋 PANNEAU LATÉRAL DROITE (DÉVIATIONS & INFO CLIENT)
    ========================================================================= */
 .deviation-panel {
     position: fixed;
     top: 14px;
     bottom: 14px;
-    left: 14px;
+    right: 14px;
+    left: auto;
     width: 390px;
     max-width: calc(100vw - 28px);
     background: rgba(255, 255, 255, 0.96) !important;
@@ -507,7 +508,7 @@ html {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transform: translateX(-110%);
+    transform: translateX(115%);
     transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -727,14 +728,32 @@ input:checked + .slider-round:before {
     color: #6b7280;
     transition: transform 0.2s ease;
     display: inline-block;
+    transform: rotate(90deg); /* Déplié: vers le bas */
 }
 
 .deviation-line-card.collapsed .chevron-toggle {
-    transform: rotate(-90deg);
+    transform: rotate(0deg); /* Replié: vers la droite */
 }
 
 .deviation-line-card.collapsed .line-card-content {
     display: none;
+}
+
+.dest-row.is-deviation-disabled {
+    opacity: 0.45 !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}
+
+.deviation-badge-dock {
+    font-size: 9px;
+    background: #d97706;
+    color: #ffffff;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 700;
+    margin-left: 4px;
+    text-transform: none;
 }
 
 .line-badge-lg {

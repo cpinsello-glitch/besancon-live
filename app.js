@@ -537,6 +537,60 @@ function setZoneActive(zoneId, isActive) {
         if (row) row.classList.remove('is-active');
     }
 
+    // Gestion du verrouillage/déverrouillage des lignes impactées dans le dock
+    if (Array.isArray(zone.lignesImpactees)) {
+        zone.lignesImpactees.forEach(ligne => {
+            const cfg = LIGNES_CONFIG.find(l => l.id === ligne.ref);
+            if (!cfg) return;
+
+            const btn = document.getElementById(`btn-line-${cfg.id}`);
+
+            cfg.destinations.forEach(d => {
+                const key = `${cfg.ref}_${d.to}`;
+                const chkDest = document.getElementById(`chk-${cfg.id}-${d.to.replace(/\s+/g, '_')}`);
+                const rowDest = chkDest ? chkDest.closest('.dest-row') : null;
+
+                if (isActive) {
+                    // Masquer l'itinéraire d'origine impraticable
+                    if (map.hasLayer(dirLayers[key])) {
+                        map.removeLayer(dirLayers[key]);
+                    }
+                    if (chkDest) {
+                        chkDest.disabled = true;
+                        chkDest.checked = false;
+                    }
+                    if (rowDest) {
+                        rowDest.classList.add('is-deviation-disabled');
+                        if (!rowDest.querySelector('.deviation-badge-dock')) {
+                            const badge = document.createElement('span');
+                            badge.className = 'deviation-badge-dock';
+                            badge.textContent = 'DÉVIÉE';
+                            rowDest.appendChild(badge);
+                        }
+                    }
+                } else {
+                    // Rétablir la possibilité de cocher normalement
+                    if (chkDest) chkDest.disabled = false;
+                    if (rowDest) {
+                        rowDest.classList.remove('is-deviation-disabled');
+                        const badge = rowDest.querySelector('.deviation-badge-dock');
+                        if (badge) badge.remove();
+                    }
+                }
+            });
+
+            if (btn) {
+                if (isActive) {
+                    btn.classList.remove('is-inactive');
+                    btn.style.borderColor = '#f59e0b';
+                } else {
+                    btn.style.borderColor = '#ffffff';
+                    updateLineButtonState(cfg.id);
+                }
+            }
+        });
+    }
+
     // Mise à jour de l'indicateur sur le bouton du dock
     const devBtn = document.getElementById('btn-deviations');
     if (devBtn) {
@@ -573,12 +627,25 @@ function renderDeviationsOnMap() {
         // 2. Pour chaque ligne impactée
         if (Array.isArray(zone.lignesImpactees)) {
             zone.lignesImpactees.forEach(ligne => {
-                // Si la ligne n'est pas cochée dans le dock, on l'active pour voir le contexte
-                setLineState(ligne.ref, true);
+                // A. Tracer le tronçon d'origine bloqué en pointillés estompés
+                if (Array.isArray(ligne.tronconBloqueOrigine) && ligne.tronconBloqueOrigine.length > 1) {
+                    const blockedLatLngs = ligne.tronconBloqueOrigine.map(c => [c[1], c[0]]);
+                    const blockedLine = L.polyline(blockedLatLngs, {
+                        color: ligne.color,
+                        weight: 4,
+                        opacity: 0.40,
+                        dashArray: '6, 8',
+                        lineCap: 'butt',
+                        lineJoin: 'round',
+                        pane: 'deviationsPane'
+                    });
+                    blockedLine.bindPopup(`<b>🚫 Tronçon Gare Viotte interrompu</b><br>Ligne ${ligne.ref} déviée`);
+                    deviationsLayer.addLayer(blockedLine);
+                }
 
+                // B. Tracer l'itinéraire de déviation en ligne continue nette
                 if (Array.isArray(ligne.directions)) {
                     ligne.directions.forEach(dir => {
-                        // Tracé de déviation
                         if (Array.isArray(dir.coordsDeviation) && dir.coordsDeviation.length > 1) {
                             const devLatLngs = dir.coordsDeviation.map(c => [c[1], c[0]]);
 
@@ -650,7 +717,8 @@ function renderZoneDetailsPanel() {
 
         zone.lignesImpactees.forEach(ligne => {
             const card = document.createElement('div');
-            card.className = 'deviation-line-card';
+            // Cartes pliées par défaut à l'affichage du secteur
+            card.className = 'deviation-line-card collapsed';
 
             let directionsHtml = '';
             ligne.directions.forEach(dir => {
@@ -692,13 +760,13 @@ function renderZoneDetailsPanel() {
             `;
 
             card.innerHTML = `
-                <div class="line-card-header" onclick="this.parentElement.classList.toggle('collapsed')" title="Cliquer pour replier/déplier cette ligne">
+                <div class="line-card-header" onclick="this.parentElement.classList.toggle('collapsed')" title="Cliquer pour déplier/replier cette ligne">
                     <div class="header-left-group">
                         <span class="line-badge-lg" style="background-color:${ligne.color}; color:${ligne.textColor};">${ligne.label}</span>
                         <span class="line-status-alert">DÉVIATION EN COURS</span>
                     </div>
                     <div class="header-right-group">
-                        <span class="chevron-toggle">▼</span>
+                        <span class="chevron-toggle">▶</span>
                     </div>
                 </div>
                 <div class="line-card-content">
