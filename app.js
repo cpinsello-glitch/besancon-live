@@ -413,23 +413,89 @@ let allDeviationsConfig = null;
 function loadDeviationsConfig(fallbackData) {
     try {
         const localSaved = localStorage.getItem('besancon_live_deviations');
-        if (localSaved) {
+        if (localSaved && fallbackData) {
             const parsed = JSON.parse(localSaved);
-            if (parsed && Array.isArray(parsed.zones) && parsed.zones.length > 0) {
-                parsed.zones.forEach(z => {
-                    if (Array.isArray(z.lignesImpactees)) {
-                        z.lignesImpactees.forEach(l => {
-                            delete l.tronconBloqueOrigine;
-                        });
-                    }
-                });
+            if (parsed && parsed.version === fallbackData.version && Array.isArray(parsed.zones) && parsed.zones.length > 0) {
                 return parsed;
             }
         }
     } catch (e) {
         console.warn("Erreur lecture localStorage déviations :", e);
     }
+    if (fallbackData) {
+        try {
+            localStorage.setItem('besancon_live_deviations', JSON.stringify(fallbackData));
+        } catch (e) {}
+    }
     return fallbackData;
+}
+
+// Reconstitue un tracé continu et ordonné pour les MultiLineString (évite les sauts en diagonale)
+function stitchMultiLineString(coordsArray) {
+    if (!coordsArray || coordsArray.length === 0) return [];
+    if (coordsArray.length === 1) return coordsArray[0];
+
+    const ways = coordsArray.map(w => [...w]);
+    const result = [...ways.shift()];
+
+    while (ways.length > 0) {
+        const firstPt = result[0];
+        const lastPt = result[result.length - 1];
+        let bestIdx = -1;
+        let attachTo = 'end';
+        let reverse = false;
+        let minDistSq = 1e9;
+
+        for (let i = 0; i < ways.length; i++) {
+            const w = ways[i];
+            const wStart = w[0];
+            const wEnd = w[w.length - 1];
+
+            const dEndStart = Math.hypot(wStart[0] - lastPt[0], wStart[1] - lastPt[1]);
+            const dEndEnd = Math.hypot(wEnd[0] - lastPt[0], wEnd[1] - lastPt[1]);
+            const dStartEnd = Math.hypot(wEnd[0] - firstPt[0], wEnd[1] - firstPt[1]);
+            const dStartStart = Math.hypot(wStart[0] - firstPt[0], wStart[1] - firstPt[1]);
+
+            if (dEndStart < minDistSq) {
+                minDistSq = dEndStart;
+                bestIdx = i;
+                attachTo = 'end';
+                reverse = false;
+            }
+            if (dEndEnd < minDistSq) {
+                minDistSq = dEndEnd;
+                bestIdx = i;
+                attachTo = 'end';
+                reverse = true;
+            }
+            if (dStartEnd < minDistSq) {
+                minDistSq = dStartEnd;
+                bestIdx = i;
+                attachTo = 'start';
+                reverse = false;
+            }
+            if (dStartStart < minDistSq) {
+                minDistSq = dStartStart;
+                bestIdx = i;
+                attachTo = 'start';
+                reverse = true;
+            }
+        }
+
+        if (bestIdx !== -1) {
+            const chosen = ways.splice(bestIdx, 1)[0];
+            if (reverse) chosen.reverse();
+            if (attachTo === 'end') {
+                result.push(...chosen);
+            } else {
+                result.unshift(...chosen);
+            }
+        } else {
+            // Tronçon non raccordé
+            result.push(...ways.shift());
+        }
+    }
+    return result;
 }
 
 Promise.all([
@@ -481,11 +547,11 @@ Promise.all([
         if (!targetLayer) return;
 
         // Stockage des coordonnées brutes ordonnées pour découpage
-        const coordsList = [];
+        let coordsList = [];
         if (feature.geometry.type === 'LineString') {
-            feature.geometry.coordinates.forEach(c => coordsList.push(c));
+            coordsList = [...feature.geometry.coordinates];
         } else if (feature.geometry.type === 'MultiLineString') {
-            feature.geometry.coordinates.forEach(sub => sub.forEach(c => coordsList.push(c)));
+            coordsList = stitchMultiLineString(feature.geometry.coordinates);
         }
         rawLineCoords[key] = coordsList;
 
@@ -1162,19 +1228,7 @@ function renderDeviationsOnMap() {
                                     }));
                                 }
 
-                                // 2. Tronçon BLOQUÉ SUR LA VRAIE ROUTE (pointillés estompés à 50%)
-                                const segBlocked = rawCoords.slice(iStart, iEnd + 1).map(c => [c[1], c[0]]);
-                                if (segBlocked.length > 1) {
-                                    deviationsLayer.addLayer(L.polyline(segBlocked, {
-                                        color: ligne.color,
-                                        weight: 5,
-                                        opacity: 0.50, // Estompé à 50%
-                                        dashArray: '6, 8', // Pointillés réguliers
-                                        lineCap: 'butt',
-                                        lineJoin: 'round',
-                                        pane: 'deviationsPane'
-                                    }).bindPopup(`<b>🚫 Tronçon neutralisé (${ligne.label} vers ${dir.to})</b><br>Déviation en cours via itinéraire bis`));
-                                }
+                                // 2. Tronçon BLOQUÉ : masqué dans le périmètre d'impact (aucun pointillé parasite, non visible et non cliquable)
 
                                 // 3. Tronçon SAIN APRÈS reprise (continu normal)
                                 if (iEnd < rawCoords.length - 1) {
@@ -1249,11 +1303,22 @@ function renderDeviationsOnMap() {
         const layerGroup = dirLayers[key];
         if (layerGroup && layerGroup._mainLineLayer) {
             if (deviatedDirKeys.has(key)) {
-                // Direction déviée : on masque complètement le tracé normal plein pour éviter toute superposition
-                layerGroup._mainLineLayer.setStyle({ opacity: 0 });
+                // Direction déviée : on masque complètement le tracé normal plein et on désactive les interactions pour éviter toute superposition
+                layerGroup._mainLineLayer.setStyle({ opacity: 0, fillOpacity: 0, interactive: false });
+                if (typeof layerGroup._mainLineLayer.eachLayer === 'function') {
+                    layerGroup._mainLineLayer.eachLayer(l => {
+                        if (l.setStyle) l.setStyle({ opacity: 0, fillOpacity: 0, interactive: false });
+                    });
+                }
             } else {
                 // Direction normale : tracé plein d'origine
-                layerGroup._mainLineLayer.setStyle({ opacity: 0.95 });
+                const isNavette = ['CITA', 'PlanB'].some(r => key.startsWith(`${r}_`));
+                layerGroup._mainLineLayer.setStyle({ opacity: 0.95, fillOpacity: 1.0, interactive: true });
+                if (typeof layerGroup._mainLineLayer.eachLayer === 'function') {
+                    layerGroup._mainLineLayer.eachLayer(l => {
+                        if (l.setStyle) l.setStyle({ opacity: 0.95, fillOpacity: 1.0, interactive: true });
+                    });
+                }
             }
         }
     });
