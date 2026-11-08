@@ -177,7 +177,6 @@ const map = L.map('map', {
     maxBoundsViscosity: 0.9
 });
 
-// Plan personnalisé avec z-index élevé pour afficher les points et terminus au-dessus des tracés
 map.createPane('stopsPane');
 map.getPane('stopsPane').style.zIndex = 650;
 
@@ -198,7 +197,6 @@ const fondEpure = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', 
     className: 'tiles-grayscale'
 });
 
-// Affiche la version ÉPURÉE (Noir & Blanc) par défaut
 fondEpure.addTo(map);
 
 function setBasemap(type) {
@@ -221,11 +219,11 @@ function setBasemap(type) {
 const impactLayer = L.layerGroup().addTo(map);
 const deviationsLayer = L.layerGroup().addTo(map);
 const dirLayers = {};
+const rawLineCoords = {}; // Stocke les points GPS des lignes normales pour le découpage propre
 
 LIGNES_CONFIG.forEach(cfg => {
     cfg.destinations.forEach(dest => {
         const key = `${cfg.ref}_${dest.to}`;
-        // Ne PAS ajouter à la carte au démarrage (tout décoché)
         dirLayers[key] = L.layerGroup();
     });
 });
@@ -239,7 +237,7 @@ LIGNES_CONFIG.forEach(cfg => {
 
     const btnEl = document.createElement('button');
     btnEl.type = 'button';
-    btnEl.className = 'dock-btn is-inactive'; // Inactif par défaut
+    btnEl.className = 'dock-btn is-inactive';
     btnEl.id = `btn-line-${cfg.id}`;
     btnEl.style.backgroundColor = cfg.color;
     btnEl.style.color = cfg.textColor;
@@ -262,7 +260,7 @@ LIGNES_CONFIG.forEach(cfg => {
 
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.checked = false; // Décoché par défaut
+        checkbox.checked = false;
         checkbox.id = `chk-${cfg.id}-${dest.to.replace(/\s+/g, '_')}`;
 
         checkbox.addEventListener('change', () => {
@@ -270,7 +268,6 @@ LIGNES_CONFIG.forEach(cfg => {
             updateLineButtonState(cfg.id);
         });
 
-        // Texte de destination direct sans flèche
         const textSpan = document.createElement('span');
         textSpan.textContent = dest.label;
 
@@ -325,7 +322,7 @@ function toggleLineAll(lineId) {
     const targetState = !anyActive;
 
     checkboxes.forEach((cb, idx) => {
-        if (cb) {
+        if (cb && !cb.disabled) {
             cb.checked = targetState;
             const dest = cfg.destinations[idx];
             toggleDirection(`${cfg.ref}_${dest.to}`, targetState);
@@ -354,7 +351,6 @@ function updateLineButtonState(lineId) {
     }
 }
 
-// Nettoyage des noms d'arrêts (retire les préfixes communaux comme "École-Valentin - ")
 function cleanStopName(name) {
     if (!name) return "Arrêt";
     let cleaned = name;
@@ -368,18 +364,35 @@ function cleanStopName(name) {
 }
 
 // =========================================================================
-// 📥 CHARGEMENT SIMULTANÉ LIGNES TC, ARRÊTS & DÉVIATIONS
+// 📥 CHARGEMENT DONNÉES TC, ARRÊTS & DÉVIATIONS (AVEC PERSISTANCE LOCALE)
 // =========================================================================
 let allDeviationsConfig = null;
+
+// Initialisation de la persistance locale pour donner un accès complet en écriture
+function loadDeviationsConfig(fallbackData) {
+    try {
+        const localSaved = localStorage.getItem('besancon_live_deviations');
+        if (localSaved) {
+            const parsed = JSON.parse(localSaved);
+            if (parsed && Array.isArray(parsed.zones) && parsed.zones.length > 0) {
+                return parsed;
+            }
+        }
+    } catch (e) {
+        console.warn("Erreur lecture localStorage déviations :", e);
+    }
+    return fallbackData;
+}
 
 Promise.all([
     fetch('data/reseau_tc.geojson').then(r => r.json()),
     fetch('data/lignes_arrets.json').then(r => r.json()),
     fetch('data/deviations.json').then(r => r.json()).catch(() => null)
 ]).then(([tcData, arretsParLigne, devData]) => {
-    allDeviationsConfig = devData;
-    if (devData && devData.zones) {
-        renderZonesList(devData.zones);
+    allDeviationsConfig = loadDeviationsConfig(devData);
+
+    if (allDeviationsConfig && allDeviationsConfig.zones) {
+        renderZonesList(allDeviationsConfig.zones);
     }
 
     if (!tcData || !Array.isArray(tcData.features)) return;
@@ -405,7 +418,16 @@ Promise.all([
 
         if (!targetLayer) return;
 
-        // 1. TRACÉ OFFICIEL DE LA LIGNE (Sans bulle au survol de la ligne)
+        // Stockage des coordonnées brutes ordonnées pour découpage
+        const coordsList = [];
+        if (feature.geometry.type === 'LineString') {
+            feature.geometry.coordinates.forEach(c => coordsList.push(c));
+        } else if (feature.geometry.type === 'MultiLineString') {
+            feature.geometry.coordinates.forEach(sub => sub.forEach(c => coordsList.push(c)));
+        }
+        rawLineCoords[key] = coordsList;
+
+        // 1. TRACÉ OFFICIEL DE LA LIGNE
         const lineLayer = L.geoJSON(feature, {
             style: {
                 color: color,
@@ -415,20 +437,22 @@ Promise.all([
             }
         });
         targetLayer.addLayer(lineLayer);
+        targetLayer._mainLineLayer = lineLayer;
+        targetLayer._lineColor = color;
+        targetLayer._isTram = isTram;
 
-        // 2. ARRÊTS SPÉCIFIQUES & STRICTS (Issus du GTFS, projetés pile sur le tracé)
+        // 2. ARRÊTS SPÉCIFIQUES & STRICTS
         const lineData = arretsParLigne[key];
         if (lineData && Array.isArray(lineData.stops)) {
             lineData.stops.forEach(st => {
                 const stopMarker = L.circleMarker([st.lat, st.lon], {
-                    radius: 6.5,          // Diamètre 13px
-                    fillColor: color,     // Couleur exacte de la ligne
-                    stroke: false,        // Sans contour
+                    radius: 6.5,
+                    fillColor: color,
+                    stroke: false,
                     fillOpacity: 1.0,
-                    pane: 'stopsPane'     // Visible par-dessus le tracé de la ligne
+                    pane: 'stopsPane'
                 });
 
-                // Nom de station sans préfixe (ex: "Centre Commercial" au lieu de "École-Valentin - ...")
                 stopMarker.bindTooltip(cleanStopName(st.name), {
                     direction: 'top',
                     offset: [0, -6],
@@ -440,7 +464,7 @@ Promise.all([
             });
         }
 
-        // 3. BADGE DE TERMINUS CALIBRÉ SANS FLÈCHE (Contour couleur de la ligne)
+        // 3. BADGE DE TERMINUS
         const terminusCoord = lineData && lineData.terminus ? lineData.terminus : null;
         if (terminusCoord) {
             const destObj = cfg ? cfg.destinations.find(d => d.to === to) : null;
@@ -465,9 +489,11 @@ Promise.all([
 });
 
 // =========================================================================
-// ⚠️ GESTION DU PANNEAU DE DÉVIATIONS & INFORMATION CLIENT
+// ⚠️ GESTION DU PANNEAU LATÉRAL DROIT : ZONES D'IMPACT & DÉVIATIONS
 // =========================================================================
 const activeZonesSet = new Set();
+let currentlyEditingZoneId = null;
+let tempCapturedDeviationCoords = null;
 
 function toggleDeviationPanel(forceState) {
     const panel = document.getElementById('deviation-panel');
@@ -503,6 +529,7 @@ function renderZonesList(zones) {
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.id = `chk-zone-${zone.id}`;
+        input.checked = activeZonesSet.has(zone.id);
 
         input.addEventListener('change', () => {
             setZoneActive(zone.id, input.checked);
@@ -537,7 +564,7 @@ function setZoneActive(zoneId, isActive) {
         if (row) row.classList.remove('is-active');
     }
 
-    // Gestion du verrouillage/déverrouillage des lignes impactées dans le dock
+    // Gestion du maintien des lignes impactées : TOUTE LA LIGNE RESTE VISIBLE
     if (Array.isArray(zone.lignesImpactees)) {
         zone.lignesImpactees.forEach(ligne => {
             const cfg = LIGNES_CONFIG.find(l => l.id === ligne.ref);
@@ -551,16 +578,14 @@ function setZoneActive(zoneId, isActive) {
                 const rowDest = chkDest ? chkDest.closest('.dest-row') : null;
 
                 if (isActive) {
-                    // Masquer l'itinéraire d'origine impraticable
-                    if (map.hasLayer(dirLayers[key])) {
-                        map.removeLayer(dirLayers[key]);
+                    // La ligne doit être affichée pour voir tout le tracé non impacté
+                    if (!map.hasLayer(dirLayers[key])) {
+                        map.addLayer(dirLayers[key]);
                     }
                     if (chkDest) {
-                        chkDest.disabled = true;
-                        chkDest.checked = false;
+                        chkDest.checked = true;
                     }
                     if (rowDest) {
-                        rowDest.classList.add('is-deviation-disabled');
                         if (!rowDest.querySelector('.deviation-badge-dock')) {
                             const badge = document.createElement('span');
                             badge.className = 'deviation-badge-dock';
@@ -569,10 +594,7 @@ function setZoneActive(zoneId, isActive) {
                         }
                     }
                 } else {
-                    // Rétablir la possibilité de cocher normalement
-                    if (chkDest) chkDest.disabled = false;
                     if (rowDest) {
-                        rowDest.classList.remove('is-deviation-disabled');
                         const badge = rowDest.querySelector('.deviation-badge-dock');
                         if (badge) badge.remove();
                     }
@@ -591,7 +613,6 @@ function setZoneActive(zoneId, isActive) {
         });
     }
 
-    // Mise à jour de l'indicateur sur le bouton du dock
     const devBtn = document.getElementById('btn-deviations');
     if (devBtn) {
         if (activeZonesSet.size > 0) devBtn.classList.add('has-active-zone');
@@ -600,6 +621,22 @@ function setZoneActive(zoneId, isActive) {
 
     renderDeviationsOnMap();
     renderZoneDetailsPanel();
+}
+
+// Fonction de projection pour découper la ligne entre le point de déviation et de retour
+function findClosestPointIndex(coords, pt) {
+    let minDistSq = 1e9;
+    let bestIdx = 0;
+    for (let i = 0; i < coords.length; i++) {
+        const dx = coords[i][0] - pt[0];
+        const dy = coords[i][1] - pt[1];
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minDistSq) {
+            minDistSq = distSq;
+            bestIdx = i;
+        }
+    }
+    return bestIdx;
 }
 
 function renderDeviationsOnMap() {
@@ -627,29 +664,33 @@ function renderDeviationsOnMap() {
         // 2. Pour chaque ligne impactée
         if (Array.isArray(zone.lignesImpactees)) {
             zone.lignesImpactees.forEach(ligne => {
-                // A. Tracer le tronçon d'origine bloqué en pointillés estompés
+                // S'assurer que le calque normal de la ligne est affiché
+                setLineState(ligne.ref, true);
+
+                // A. TRONÇON D'ORIGINE IMPACTÉ : POINTILLÉS ESTOMPÉS À 50%
                 if (Array.isArray(ligne.tronconBloqueOrigine) && ligne.tronconBloqueOrigine.length > 1) {
                     const blockedLatLngs = ligne.tronconBloqueOrigine.map(c => [c[1], c[0]]);
+
+                    // Ligne en pointillés estompés à 50% entre le point de déviation et le point de retour
                     const blockedLine = L.polyline(blockedLatLngs, {
                         color: ligne.color,
-                        weight: 4,
-                        opacity: 0.40,
+                        weight: 5,
+                        opacity: 0.50, // Estompé à 50%
                         dashArray: '6, 8',
                         lineCap: 'butt',
                         lineJoin: 'round',
                         pane: 'deviationsPane'
                     });
-                    blockedLine.bindPopup(`<b>🚫 Tronçon Gare Viotte interrompu</b><br>Ligne ${ligne.ref} déviée`);
+                    blockedLine.bindPopup(`<b>🚫 Tronçon Gare Viotte interrompu</b><br>Ligne ${ligne.ref} déviée (estompé à 50%)`);
                     deviationsLayer.addLayer(blockedLine);
                 }
 
-                // B. Tracer l'itinéraire de déviation en ligne continue nette
+                // B. TRACÉ DE DÉVIATION : LIGNE CONTINUE PLEINE ET NETTE
                 if (Array.isArray(ligne.directions)) {
                     ligne.directions.forEach(dir => {
                         if (Array.isArray(dir.coordsDeviation) && dir.coordsDeviation.length > 1) {
                             const devLatLngs = dir.coordsDeviation.map(c => [c[1], c[0]]);
 
-                            // Ligne de déviation avec double tracé (bordure blanche + couleur intense de la ligne, continu net)
                             const casingLine = L.polyline(devLatLngs, {
                                 color: '#ffffff',
                                 weight: 8,
@@ -663,7 +704,7 @@ function renderDeviationsOnMap() {
                                 color: ligne.color,
                                 weight: 5,
                                 opacity: 1.0,
-                                dashArray: null, // Ligne continue nette suivant fidèlement la route
+                                dashArray: null, // Ligne continue nette
                                 lineCap: 'round',
                                 lineJoin: 'round',
                                 pane: 'deviationsPane'
@@ -680,7 +721,7 @@ function renderDeviationsOnMap() {
                             deviationsLayer.addLayer(mainDevLine);
                         }
 
-                        // Marqueur spécial pour l'arrêt non desservi (Gare Viotte)
+                        // Pastille rouge pour arrêt non desservi
                         if (dir.arretsNonDesservis && dir.arretsNonDesservis.includes("Gare Viotte")) {
                             const stopViotteIcon = L.divIcon({
                                 className: 'leaflet-missed-stop-icon',
@@ -717,7 +758,7 @@ function renderZoneDetailsPanel() {
 
         zone.lignesImpactees.forEach(ligne => {
             const card = document.createElement('div');
-            // Cartes pliées par défaut à l'affichage du secteur
+            // Cartes pliées par défaut à l'affichage
             card.className = 'deviation-line-card collapsed';
 
             let directionsHtml = '';
@@ -822,23 +863,262 @@ function triggerCopySuccess(btnEl) {
 }
 
 // =========================================================================
+// 📝 ACCÈS EN ÉCRITURE : ÉDITEUR DE ZONE D'IMPACT & DÉVIATIONS
+// =========================================================================
+function openZoneEditor(zoneIdToEdit) {
+    const viewList = document.getElementById('view-zones-list');
+    const viewEdit = document.getElementById('view-zone-editor');
+    if (!viewList || !viewEdit) return;
+
+    currentlyEditingZoneId = zoneIdToEdit || null;
+    tempCapturedDeviationCoords = null;
+
+    viewList.style.display = 'none';
+    viewEdit.style.display = 'block';
+
+    const titleEl = document.getElementById('editor-title-label');
+    const nomInput = document.getElementById('edit-zone-nom');
+    const descInput = document.getElementById('edit-zone-desc');
+    const ligneSelect = document.getElementById('edit-ligne-select');
+    const dernierInput = document.getElementById('edit-dernier-arret');
+    const prochainInput = document.getElementById('edit-prochain-arret');
+    const arretsNonDesservisInput = document.getElementById('edit-arrets-non-desservis');
+    const itineraireInput = document.getElementById('edit-itineraire-desc');
+    const messageClientText = document.getElementById('edit-message-client');
+    const traceStatus = document.getElementById('trace-status-label');
+
+    if (traceStatus) traceStatus.textContent = 'Tracé actuel conservé';
+
+    if (zoneIdToEdit && allDeviationsConfig) {
+        const zone = allDeviationsConfig.zones.find(z => z.id === zoneIdToEdit);
+        if (zone) {
+            titleEl.textContent = `Modifier : ${zone.nom}`;
+            nomInput.value = zone.nom || '';
+            descInput.value = zone.description || '';
+
+            const firstLigne = zone.lignesImpactees && zone.lignesImpactees[0] ? zone.lignesImpactees[0] : null;
+            if (firstLigne) {
+                ligneSelect.value = firstLigne.ref;
+                const firstDir = firstLigne.directions && firstLigne.directions[0] ? firstLigne.directions[0] : {};
+                dernierInput.value = firstDir.dernierArret || '';
+                prochainInput.value = firstDir.prochainArret || '';
+                arretsNonDesservisInput.value = (firstDir.arretsNonDesservis || []).join(', ');
+                itineraireInput.value = firstDir.itineraire || '';
+                messageClientText.value = firstLigne.texteInfoClient || '';
+            }
+            return;
+        }
+    }
+
+    // Nouvelle zone vierge
+    titleEl.textContent = 'Nouveau secteur d’impact';
+    nomInput.value = '';
+    descInput.value = '';
+    dernierInput.value = '';
+    prochainInput.value = '';
+    arretsNonDesservisInput.value = '';
+    itineraireInput.value = '';
+    messageClientText.value = '';
+}
+
+function editCurrentSelectedZone() {
+    const firstActive = activeZonesSet.values().next().value;
+    const targetId = firstActive || (allDeviationsConfig && allDeviationsConfig.zones[0] ? allDeviationsConfig.zones[0].id : null);
+    if (targetId) {
+        openZoneEditor(targetId);
+    } else {
+        openZoneEditor(null);
+    }
+}
+
+function closeZoneEditor() {
+    const viewList = document.getElementById('view-zones-list');
+    const viewEdit = document.getElementById('view-zone-editor');
+    if (!viewList || !viewEdit) return;
+
+    viewEdit.style.display = 'none';
+    viewList.style.display = 'block';
+    currentlyEditingZoneId = null;
+    tempCapturedDeviationCoords = null;
+}
+
+function onEditorLigneChanged() {
+    const sel = document.getElementById('edit-ligne-select');
+    if (!sel) return;
+    const ref = sel.value;
+    const cfg = LIGNES_CONFIG.find(l => l.id === ref);
+    if (cfg) {
+        document.getElementById('edit-message-client').value =
+            `⚠️ INFO TRAFIC GINKO - Ligne ${cfg.label}\nEn raison d'un blocage de secteur, la ligne est déviée.\nArrêt(s) non desservi(s) : ...\nReport aux arrêts : ...`;
+    }
+}
+
+// Outil pour tracer à la souris sur la carte et capturer les points
+function startDrawingDeviationTrace() {
+    alert("Tracez maintenant la déviation à la souris sur la carte avec le crayon. Cliquez sur chaque virage de la rue, puis double-cliquez pour terminer.");
+    toggleDeviationPanel(false);
+
+    map.pm.enableDraw('Line', {
+        snappable: true,
+        snapDistance: 20
+    });
+
+    const onDrawCreated = function (e) {
+        const layer = e.layer;
+        if (layer && layer.getLatLngs) {
+            const rawPts = layer.getLatLngs();
+            tempCapturedDeviationCoords = rawPts.map(pt => [
+                Math.round(pt.lng * 100000) / 100000,
+                Math.round(pt.lat * 100000) / 100000
+            ]);
+
+            map.removeLayer(layer);
+            map.off('pm:create', onDrawCreated);
+
+            toggleDeviationPanel(true);
+            const traceStatus = document.getElementById('trace-status-label');
+            if (traceStatus) {
+                traceStatus.textContent = `✅ Tracé capturé (${tempCapturedDeviationCoords.length} points enregistrés) !`;
+            }
+        }
+    };
+
+    map.once('pm:create', onDrawCreated);
+}
+
+function saveZoneFromEditor(event) {
+    if (event) event.preventDefault();
+
+    if (!allDeviationsConfig) {
+        allDeviationsConfig = { zones: [] };
+    }
+
+    const nom = document.getElementById('edit-zone-nom').value.trim();
+    const desc = document.getElementById('edit-zone-desc').value.trim();
+    const ligneRef = document.getElementById('edit-ligne-select').value;
+    const dernierArret = document.getElementById('edit-dernier-arret').value.trim();
+    const prochainArret = document.getElementById('edit-prochain-arret').value.trim();
+    const nonDesservisArr = document.getElementById('edit-arrets-non-desservis').value
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    const itineraire = document.getElementById('edit-itineraire-desc').value.trim();
+    const messageClient = document.getElementById('edit-message-client').value.trim();
+
+    const cfgLigne = LIGNES_CONFIG.find(l => l.id === ligneRef) || { label: ligneRef, color: '#006AB3', textColor: '#FFFFFF' };
+
+    let targetZone = null;
+    if (currentlyEditingZoneId) {
+        targetZone = allDeviationsConfig.zones.find(z => z.id === currentlyEditingZoneId);
+    }
+
+    if (!targetZone) {
+        const newId = 'zone_' + Date.now();
+        targetZone = {
+            id: newId,
+            nom: nom,
+            description: desc,
+            polygon: [
+                [6.0205, 47.2468],
+                [6.0235, 47.2468],
+                [6.0240, 47.2452],
+                [6.0210, 47.2450]
+            ],
+            lignesImpactees: []
+        };
+        allDeviationsConfig.zones.push(targetZone);
+    } else {
+        targetZone.nom = nom;
+        targetZone.description = desc;
+    }
+
+    // Mise à jour de la ligne dans la zone
+    let targetLigne = targetZone.lignesImpactees.find(l => l.ref === ligneRef);
+    if (!targetLigne) {
+        targetLigne = {
+            ref: ligneRef,
+            label: cfgLigne.label,
+            color: cfgLigne.color,
+            textColor: cfgLigne.textColor,
+            directions: []
+        };
+        targetZone.lignesImpactees.push(targetLigne);
+    }
+
+    targetLigne.texteInfoClient = messageClient;
+
+    // Mise à jour des directions
+    const usedCoords = tempCapturedDeviationCoords ||
+        (targetLigne.directions && targetLigne.directions[0] ? targetLigne.directions[0].coordsDeviation : []);
+
+    const dest1 = cfgLigne.destinations && cfgLigne.destinations[0] ? cfgLigne.destinations[0].to : "Aller";
+    const dest2 = cfgLigne.destinations && cfgLigne.destinations[1] ? cfgLigne.destinations[1].to : "Retour";
+
+    targetLigne.directions = [
+        {
+            to: dest1,
+            dernierArret: dernierArret,
+            prochainArret: prochainArret,
+            arretsNonDesservis: nonDesservisArr,
+            itineraire: itineraire,
+            coordsDeviation: usedCoords
+        },
+        {
+            to: dest2,
+            dernierArret: prochainArret,
+            prochainArret: dernierArret,
+            arretsNonDesservis: nonDesservisArr,
+            itineraire: itineraire,
+            coordsDeviation: Array.isArray(usedCoords) ? [...usedCoords].reverse() : []
+        }
+    ];
+
+    // Sauvegarde immédiate dans localStorage (accès direct en écriture)
+    try {
+        localStorage.setItem('besancon_live_deviations', JSON.stringify(allDeviationsConfig));
+    } catch (e) {
+        console.warn("Erreur sauvegarde localStorage :", e);
+    }
+
+    renderZonesList(allDeviationsConfig.zones);
+    renderDeviationsOnMap();
+    renderZoneDetailsPanel();
+    closeZoneEditor();
+
+    alert("Zone d'impact enregistrée avec succès !");
+}
+
+function exportDeviationsJson() {
+    if (!allDeviationsConfig) return;
+    const str = JSON.stringify(allDeviationsConfig, null, 2);
+    const blob = new Blob([str], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'deviations.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// =========================================================================
 // 🚨 OUTILS DE TRACÉ (CORTÈGE 10PX & TRAVAUX 10PX SUITE NOIR / JAUNE)
 // =========================================================================
 let currentDrawMode = 'cortege';
 
-// Configuration Leaflet-Geoman (Bord gauche centré verticalement)
 map.pm.addControls({
     position: 'topleft',
-    drawPolyline: true,    // 📏 Tracé
-    drawMarker: true,      // 📍 Marqueur
-    drawPolygon: false,    // ❌ Masqué
-    drawCircle: false,     // ❌ Masqué
-    drawRectangle: false,  // ❌ Masqué
-    editMode: false,       // ❌ Masqué
-    rotateMode: false,     // ❌ Masqué
-    dragMode: false,       // ❌ Masqué
-    cutPolygon: false,     // ❌ Masqué
-    removalMode: true      // 🗑️ Poubelle pour supprimer au clic
+    drawPolyline: true,
+    drawMarker: true,
+    drawPolygon: false,
+    drawCircle: false,
+    drawRectangle: false,
+    editMode: false,
+    rotateMode: false,
+    dragMode: false,
+    cutPolygon: false,
+    removalMode: true
 });
 
 map.on('pm:remove', function (e) {
@@ -860,7 +1140,6 @@ function applyDrawStyle() {
             lineJoin: 'round'
         });
     } else {
-        // Prévisualisation travaux : tirets jaunes et noirs
         map.pm.setPathOptions({
             color: '#ffe500',
             fillColor: '#ffe500',
@@ -906,9 +1185,7 @@ map.on('pm:create', function (e) {
         layer.bindPopup(`<b>🔴 Cortège / Axe bloqué (10px)</b><br><small>Signalé à: ${timeString}</small>`);
         impactLayer.addLayer(layer);
     } else {
-        // Mode TRAVAUX : Alternance parfaite 10px TRAIT NOIR et TRAIT JAUNE (15px/15px)
         if (layer.setStyle) {
-            // Couche inférieure noire continue 10px bords droits
             layer.setStyle({
                 color: '#000000',
                 weight: 10,
@@ -918,7 +1195,6 @@ map.on('pm:create', function (e) {
                 lineJoin: 'miter'
             });
 
-            // Couche supérieure en tirets jaunes 10px (laisse apparaître le noir dans les intervalles)
             if (layer.getLatLngs) {
                 const yellowStripe = L.polyline(layer.getLatLngs(), {
                     color: '#ffe500',
@@ -950,7 +1226,6 @@ function clearAllShapes() {
     }
 }
 
-// Redimensionnement automatique de la carte
 window.addEventListener('resize', () => {
     map.invalidateSize();
 });

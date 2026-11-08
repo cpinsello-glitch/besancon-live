@@ -66,27 +66,124 @@
         </div>
     </header>
 
-    <!-- 📋 PANNEAU LATÉRAL GAUCHE : ZONES D'IMPACT & INFORMATION CLIENT -->
+    <!-- 📋 PANNEAU LATÉRAL DROIT : ZONES D'IMPACT, DÉVIATIONS & ÉDITION -->
     <aside id="deviation-panel" class="deviation-panel">
         <div class="deviation-panel-header">
             <div class="panel-header-title">
                 <span class="panel-icon">⚠️</span>
-                <h2>Zones d'impact & Déviations</h2>
+                <h2 id="panel-title-text">Zones d'impact & Déviations</h2>
             </div>
-            <button type="button" class="btn-close-panel" id="btn-close-deviation-panel" onclick="toggleDeviationPanel(false)" title="Fermer le panneau">✕</button>
+            <div class="panel-header-actions">
+                <button type="button" class="btn-panel-action" id="btn-add-zone" onclick="openZoneEditor()" title="Créer un nouveau secteur d'impact">➕ Nouveau</button>
+                <button type="button" class="btn-close-panel" id="btn-close-deviation-panel" onclick="toggleDeviationPanel(false)" title="Fermer le panneau">✕</button>
+            </div>
         </div>
 
         <div class="deviation-panel-body">
-            <div class="zone-selector-box">
-                <div class="section-label">SÉLECTEUR DE ZONE D'IMPACT</div>
-                <div id="zones-list" class="zones-list">
-                    <!-- Généré dynamiquement -->
+            <!-- VUE 1 : CONSULTATION & ACTIVATION OPÉRATIONNELLE -->
+            <div id="view-zones-list" class="panel-view-section">
+                <div class="zone-selector-box">
+                    <div class="section-label-row">
+                        <span class="section-label">SÉLECTEUR DE ZONE D'IMPACT</span>
+                        <button type="button" class="btn-text-edit" onclick="editCurrentSelectedZone()" title="Modifier la zone active">✏️ Modifier</button>
+                    </div>
+                    <div id="zones-list" class="zones-list">
+                        <!-- Généré dynamiquement -->
+                    </div>
+                </div>
+
+                <!-- Contenu réactif dès qu'une zone est active (lignes pliées par défaut) -->
+                <div id="zone-details-container" class="zone-details-container">
+                    <!-- Détails lignes et textes à copier -->
+                </div>
+
+                <div class="panel-footer-actions">
+                    <button type="button" class="btn-export-json" onclick="exportDeviationsJson()" title="Télécharger le fichier deviations.json pour sauvegarde">
+                        📥 Exporter les déviations (JSON)
+                    </button>
                 </div>
             </div>
 
-            <!-- Contenu réactif dès qu'une zone est active -->
-            <div id="zone-details-container" class="zone-details-container">
-                <!-- Détails lignes et textes à copier générés dynamiquement -->
+            <!-- VUE 2 : ÉDITEUR DE ZONE D'IMPACT EN ÉCRITURE -->
+            <div id="view-zone-editor" class="panel-view-section" style="display: none;">
+                <div class="editor-header-bar">
+                    <button type="button" class="btn-back-view" onclick="closeZoneEditor()">← Retour</button>
+                    <span class="editor-title" id="editor-title-label">Éditer le secteur</span>
+                </div>
+
+                <form id="form-zone-editor" class="form-zone-editor" onsubmit="saveZoneFromEditor(event)">
+                    <div class="form-group">
+                        <label>Nom du secteur / point d'impact :</label>
+                        <input type="text" id="edit-zone-nom" required placeholder="Ex: Secteur Gare Viotte (Parvis bloqué)">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description courte :</label>
+                        <input type="text" id="edit-zone-desc" placeholder="Ex: Blocage parvis gare, axes fermés">
+                    </div>
+
+                    <div class="editor-divider"></div>
+                    <div class="editor-subhead">Ligne impactée & Déviation</div>
+
+                    <div class="form-group">
+                        <label>Ligne concernée :</label>
+                        <select id="edit-ligne-select" onchange="onEditorLigneChanged()">
+                            <option value="L3">Ligne 3</option>
+                            <option value="L5">Ligne 5</option>
+                            <option value="L4">Ligne 4</option>
+                            <option value="T1">Tram T1</option>
+                            <option value="T2">Tram T2</option>
+                            <option value="L6">Ligne 6</option>
+                            <option value="7">Ligne 7</option>
+                            <option value="8">Ligne 8</option>
+                            <option value="9">Ligne 9</option>
+                            <option value="10">Ligne 10</option>
+                            <option value="11">Ligne 11</option>
+                            <option value="12">Ligne 12</option>
+                            <option value="CITA">Citadelle</option>
+                            <option value="PlanB">Plan B</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label>Dernier arrêt desservi :</label>
+                            <input type="text" id="edit-dernier-arret" required placeholder="Ex: Voirin">
+                        </div>
+                        <div class="form-group">
+                            <label>Premier arrêt repris :</label>
+                            <input type="text" id="edit-prochain-arret" required placeholder="Ex: Isenbart">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Arrêt(s) non desservi(s) :</label>
+                        <input type="text" id="edit-arrets-non-desservis" placeholder="Ex: Gare Viotte">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Itinéraire de déviation emprunté :</label>
+                        <input type="text" id="edit-itineraire-desc" placeholder="Ex: Place Leclerc > Av. Edgar Faure > Av. Foch">
+                    </div>
+
+                    <div class="form-group draw-trace-box">
+                        <label>Tracé GPS du contournement :</label>
+                        <button type="button" class="btn-draw-deviation" id="btn-draw-deviation-trace" onclick="startDrawingDeviationTrace()">
+                            ✏️ Tracer ou modifier le contournement à la souris sur la carte
+                        </button>
+                        <span id="trace-status-label" class="trace-status">Tracé actuel conservé</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Message Info Voyageurs (SAEIV / SMS) :</label>
+                        <textarea id="edit-message-client" rows="4" placeholder="Texte prédéfini pour l'information voyageurs..."></textarea>
+                    </div>
+
+                    <div class="form-actions-bar">
+                        <button type="submit" class="btn-save-zone">💾 Enregistrer le secteur</button>
+                        <button type="button" class="btn-cancel-edit" onclick="closeZoneEditor()">Annuler</button>
+                    </div>
+                </form>
             </div>
         </div>
     </aside>

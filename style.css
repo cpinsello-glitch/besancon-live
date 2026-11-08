@@ -894,3 +894,225 @@ input:checked + .slider-round:before {
 .btn-copy-info.copied {
     background: #15803d !important;
 }
+
+/* =========================================================================
+   🛠️ STYLES DU FORMULAIRE D'ÉDITION DES ZONES & DÉVIATIONS
+   ========================================================================= */
+.panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-panel-action {
+    background: #006AB3;
+    color: #ffffff;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn-panel-action:hover {
+    background: #005691;
+}
+
+.section-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.btn-text-edit {
+    background: none;
+    border: none;
+    color: #006AB3;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.btn-text-edit:hover {
+    text-decoration: underline;
+}
+
+.panel-footer-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+.btn-export-json {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.btn-export-json:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.editor-header-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 14px;
+}
+
+.btn-back-view {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.editor-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.form-zone-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form-group label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: 'Roboto', sans-serif !important;
+    background: #ffffff;
+    color: #111827;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #006AB3;
+    box-shadow: 0 0 0 2px rgba(0, 106, 179, 0.15);
+}
+
+.form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.editor-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 4px 0;
+}
+
+.editor-subhead {
+    font-size: 12px;
+    font-weight: 800;
+    color: #006AB3;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.draw-trace-box {
+    background: #eff6ff;
+    border: 1px dashed #93c5fd;
+    border-radius: 8px;
+    padding: 10px;
+    gap: 8px;
+}
+
+.btn-draw-deviation {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s ease;
+}
+
+.btn-draw-deviation:hover {
+    background: #1d4ed8;
+}
+
+.trace-status {
+    font-size: 11px;
+    color: #1e40af;
+    font-weight: 500;
+}
+
+.form-actions-bar {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.btn-save-zone {
+    flex: 2;
+    background: #15803d;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn-save-zone:hover {
+    background: #166534;
+}
+
+.btn-cancel-edit {
+    flex: 1;
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
