@@ -391,8 +391,22 @@ Promise.all([
 ]).then(([tcData, arretsParLigne, devData]) => {
     allDeviationsConfig = loadDeviationsConfig(devData);
 
+    try {
+        const savedActive = localStorage.getItem('besancon_live_active_zones');
+        if (savedActive) {
+            const arr = JSON.parse(savedActive);
+            if (Array.isArray(arr)) {
+                arr.forEach(zid => activeZonesSet.add(zid));
+            }
+        }
+    } catch (e) {}
+
     if (allDeviationsConfig && allDeviationsConfig.zones) {
         renderZonesList(allDeviationsConfig.zones);
+        if (activeZonesSet.size > 0) {
+            renderDeviationsOnMap();
+            renderZoneDetailsPanel();
+        }
     }
 
     if (!tcData || !Array.isArray(tcData.features)) return;
@@ -489,6 +503,374 @@ Promise.all([
 });
 
 // =========================================================================
+// 📡 SYNCHRONISATION MULTI-ÉCRANS TEMPS RÉEL & CONTRÔLE DE SESSION MAÎTRE
+// =========================================================================
+const mySessionId = 'Poste-' + Math.floor(1000 + Math.random() * 9000);
+let isMaster = false;
+let currentMasterInfo = null; // { id: 'Poste-1234', timestamp: Date.now() }
+let masterHeartbeatInterval = null;
+let masterCheckInterval = null;
+
+// Mode Administrateur (création/modification/suppression avec PIN 4 chiffres)
+let isAdmin = false;
+const ADMIN_PIN_DEFAULT = "1234";
+
+// Synchronisation multi-écrans : BroadcastChannel local (0ms) + MQTT over WebSocket
+const SYNC_TOPIC_STATE = "besancon-live/ginko/v1/state";
+const SYNC_TOPIC_MASTER = "besancon-live/ginko/v1/master";
+let syncBroadcastChannel = null;
+let mqttClient = null;
+
+function showSyncToast(text) {
+    const toast = document.getElementById('sync-toast');
+    const toastText = document.getElementById('sync-toast-text');
+    if (!toast || !toastText) return;
+    toastText.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+        toast.classList.remove('show');
+    }, 2800);
+}
+
+// --- GESTION DU CODE PIN ADMIN ---
+function openAdminPinModal() {
+    const modal = document.getElementById('modal-admin-pin');
+    const input = document.getElementById('input-admin-pin');
+    const err = document.getElementById('pin-error-msg');
+    if (!modal) return;
+    if (err) err.style.display = 'none';
+    if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 120);
+    }
+    modal.style.display = 'flex';
+}
+
+function closeAdminPinModal() {
+    const modal = document.getElementById('modal-admin-pin');
+    if (modal) modal.style.display = 'none';
+}
+
+function submitAdminPin(event) {
+    if (event) event.preventDefault();
+    const input = document.getElementById('input-admin-pin');
+    const err = document.getElementById('pin-error-msg');
+    const pinVal = input ? input.value.trim() : '';
+
+    if (pinVal === ADMIN_PIN_DEFAULT) {
+        isAdmin = true;
+        closeAdminPinModal();
+        updateAdminUI();
+        showSyncToast("🔓 Mode Administrateur déverrouillé.");
+    } else {
+        if (err) err.style.display = 'block';
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+    }
+}
+
+function toggleAdminAccess() {
+    if (isAdmin) {
+        isAdmin = false;
+        updateAdminUI();
+        closeZoneEditor();
+        showSyncToast("🔒 Mode Administrateur verrouillé.");
+    } else {
+        openAdminPinModal();
+    }
+}
+
+function updateAdminUI() {
+    const btnAdmin = document.getElementById('btn-admin-access');
+    const btnAdd = document.getElementById('btn-add-zone');
+    const btnEditActive = document.getElementById('btn-edit-active-zone');
+
+    if (btnAdmin) {
+        if (isAdmin) {
+            btnAdmin.innerHTML = '🔓 Admin actif <span style="font-size:9px; opacity:0.8;">[Quitter]</span>';
+            btnAdmin.classList.add('is-logged');
+            btnAdmin.title = "Cliquer pour quitter le mode Administrateur";
+        } else {
+            btnAdmin.innerHTML = '🔒 Admin';
+            btnAdmin.classList.remove('is-logged');
+            btnAdmin.title = "Accès administrateur (Code PIN 4 chiffres)";
+        }
+    }
+
+    if (btnAdd) {
+        // Visible uniquement en mode admin avec son + jaune
+        btnAdd.style.display = isAdmin ? 'inline-flex' : 'none';
+    }
+
+    if (btnEditActive) {
+        btnEditActive.style.display = isAdmin ? 'inline-block' : 'none';
+    }
+
+    if (allDeviationsConfig && allDeviationsConfig.zones) {
+        renderZonesList(allDeviationsConfig.zones);
+    }
+}
+
+// --- CONTRÔLE DE SESSION MAÎTRE / LECTURE SEULE ---
+function initSessionControl() {
+    const myIdEl = document.getElementById('session-my-id');
+    if (myIdEl) myIdEl.textContent = mySessionId;
+
+    updateSessionUI();
+
+    // Surveillance expiration du verrou maître (si inactif depuis > 6,5s)
+    masterCheckInterval = setInterval(() => {
+        if (!isMaster && currentMasterInfo) {
+            const elapsed = Date.now() - currentMasterInfo.timestamp;
+            if (elapsed > 6500) {
+                console.log("Verrou maître expiré : libération automatique.");
+                currentMasterInfo = null;
+                updateSessionUI();
+                showSyncToast("ℹ️ Contrôle principal libéré (Poste inactif).");
+            }
+        }
+    }, 1500);
+
+    window.addEventListener('beforeunload', () => {
+        if (isMaster) {
+            releaseMasterRole();
+        }
+    });
+}
+
+function updateSessionUI() {
+    const dot = document.getElementById('session-dot');
+    const statusText = document.getElementById('session-status-text');
+    const btnToggle = document.getElementById('btn-master-toggle');
+    if (!dot || !statusText || !btnToggle) return;
+
+    if (isMaster) {
+        dot.className = 'session-dot dot-master';
+        statusText.textContent = "👑 Session Maître (Vous pilotez l'affichage)";
+        btnToggle.className = 'btn-master-toggle is-master';
+        btnToggle.innerHTML = "🔓 Libérer la main";
+        btnToggle.disabled = false;
+        btnToggle.title = "Libérer la main pour permettre à un autre poste de piloter";
+    } else if (currentMasterInfo && currentMasterInfo.id !== mySessionId) {
+        dot.className = 'session-dot dot-locked';
+        statusText.textContent = `🔒 Contrôlé par ${currentMasterInfo.id}`;
+        btnToggle.className = 'btn-master-toggle is-disabled';
+        btnToggle.innerHTML = "🔒 Main occupée";
+        btnToggle.disabled = true;
+        btnToggle.title = `Le poste ${currentMasterInfo.id} détient actuellement la main exclusive`;
+    } else {
+        dot.className = 'session-dot dot-readonly';
+        statusText.textContent = "Session en lecture seule (Contrôle libre)";
+        btnToggle.className = 'btn-master-toggle';
+        btnToggle.innerHTML = "👑 Prendre la main";
+        btnToggle.disabled = false;
+        btnToggle.title = "Prendre la main pour piloter l'affichage sur tous les écrans connectés";
+    }
+}
+
+function toggleMasterRole() {
+    if (isMaster) {
+        releaseMasterRole();
+    } else {
+        claimMasterRole();
+    }
+}
+
+function claimMasterRole() {
+    if (currentMasterInfo && currentMasterInfo.id !== mySessionId && (Date.now() - currentMasterInfo.timestamp < 6500)) {
+        alert(`Le poste « ${currentMasterInfo.id} » détient actuellement la main exclusive.\nVous devez attendre qu'il libère la main ou ferme sa session.`);
+        return;
+    }
+
+    isMaster = true;
+    currentMasterInfo = { id: mySessionId, timestamp: Date.now() };
+    updateSessionUI();
+
+    broadcastMasterMessage('claim');
+
+    if (masterHeartbeatInterval) clearInterval(masterHeartbeatInterval);
+    masterHeartbeatInterval = setInterval(() => {
+        if (isMaster) {
+            broadcastMasterMessage('heartbeat');
+        }
+    }, 2500);
+
+    showSyncToast("👑 Vous avez pris la main ! Vos actions pilotent tous les écrans.");
+}
+
+function releaseMasterRole() {
+    if (!isMaster) return;
+    isMaster = false;
+    currentMasterInfo = null;
+
+    if (masterHeartbeatInterval) {
+        clearInterval(masterHeartbeatInterval);
+        masterHeartbeatInterval = null;
+    }
+
+    broadcastMasterMessage('release');
+    updateSessionUI();
+    showSyncToast("ℹ️ Main libérée. Session revenue en lecture seule.");
+}
+
+function broadcastMasterMessage(action) {
+    const msg = {
+        action: action,
+        masterId: mySessionId,
+        timestamp: Date.now()
+    };
+
+    if (syncBroadcastChannel) {
+        try {
+            syncBroadcastChannel.postMessage({ type: 'sync_master', data: msg });
+        } catch (e) {}
+    }
+
+    if (mqttClient && mqttClient.connected) {
+        try {
+            mqttClient.publish(SYNC_TOPIC_MASTER, JSON.stringify(msg), { qos: 1, retain: action !== 'release' });
+        } catch (e) {}
+    }
+}
+
+function handleIncomingMasterMessage(msg) {
+    if (!msg || msg.masterId === mySessionId) return;
+
+    if (msg.action === 'claim' || msg.action === 'heartbeat') {
+        currentMasterInfo = { id: msg.masterId, timestamp: msg.timestamp || Date.now() };
+        if (isMaster) {
+            isMaster = false;
+            if (masterHeartbeatInterval) clearInterval(masterHeartbeatInterval);
+        }
+        updateSessionUI();
+    } else if (msg.action === 'release') {
+        if (currentMasterInfo && currentMasterInfo.id === msg.masterId) {
+            currentMasterInfo = null;
+            updateSessionUI();
+        }
+    }
+}
+
+// --- SYNCHRONISATION EN TEMPS RÉEL (AFFICHAGE UNIQUE) ---
+function broadcastAppState() {
+    const payload = {
+        sender: mySessionId,
+        timestamp: Date.now(),
+        allDeviationsConfig: allDeviationsConfig,
+        activeZones: Array.from(activeZonesSet)
+    };
+
+    try {
+        localStorage.setItem('besancon_live_deviations', JSON.stringify(allDeviationsConfig));
+        localStorage.setItem('besancon_live_active_zones', JSON.stringify(payload.activeZones));
+    } catch (e) {}
+
+    if (syncBroadcastChannel) {
+        try {
+            syncBroadcastChannel.postMessage({ type: 'sync_state', data: payload });
+        } catch (e) {}
+    }
+
+    if (mqttClient && mqttClient.connected) {
+        try {
+            mqttClient.publish(SYNC_TOPIC_STATE, JSON.stringify(payload), { qos: 1, retain: true });
+        } catch (e) {}
+    }
+}
+
+function handleIncomingStateUpdate(data) {
+    if (!data || data.sender === mySessionId) return;
+
+    if (data.allDeviationsConfig && Array.isArray(data.allDeviationsConfig.zones)) {
+        allDeviationsConfig = data.allDeviationsConfig;
+        try {
+            localStorage.setItem('besancon_live_deviations', JSON.stringify(allDeviationsConfig));
+        } catch (e) {}
+    }
+
+    if (Array.isArray(data.activeZones)) {
+        activeZonesSet.clear();
+        data.activeZones.forEach(id => activeZonesSet.add(id));
+        try {
+            localStorage.setItem('besancon_live_active_zones', JSON.stringify(data.activeZones));
+        } catch (e) {}
+    }
+
+    if (allDeviationsConfig && allDeviationsConfig.zones) {
+        renderZonesList(allDeviationsConfig.zones);
+    }
+    renderDeviationsOnMap();
+    renderZoneDetailsPanel();
+
+    showSyncToast(`⚡ Affichage synchronisé en direct (${data.sender})`);
+}
+
+function initRealtimeSync() {
+    // 1. Synchronisation BroadcastChannel (inter-onglets local 0ms)
+    try {
+        if ('BroadcastChannel' in window) {
+            syncBroadcastChannel = new BroadcastChannel('besancon_live_sync_channel');
+            syncBroadcastChannel.onmessage = (event) => {
+                const msg = event.data;
+                if (!msg) return;
+                if (msg.type === 'sync_state') handleIncomingStateUpdate(msg.data);
+                if (msg.type === 'sync_master') handleIncomingMasterMessage(msg.data);
+            };
+        }
+    } catch (e) {
+        console.warn("BroadcastChannel non disponible :", e);
+    }
+
+    // 2. Synchronisation MQTT over WebSocket (multi-PC)
+    if (typeof mqtt !== 'undefined') {
+        const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+        try {
+            mqttClient = mqtt.connect(brokerUrl, {
+                clientId: mySessionId + '_' + Math.random().toString(16).substring(2, 8),
+                clean: true,
+                connectTimeout: 6000,
+                reconnectPeriod: 3000
+            });
+
+            mqttClient.on('connect', () => {
+                console.log("Connecté au broker de synchronisation temps réel MQTT");
+                mqttClient.subscribe([SYNC_TOPIC_STATE, SYNC_TOPIC_MASTER], { qos: 1 });
+            });
+
+            mqttClient.on('message', (topic, message) => {
+                try {
+                    const parsed = JSON.parse(message.toString());
+                    if (topic === SYNC_TOPIC_STATE) {
+                        handleIncomingStateUpdate(parsed);
+                    } else if (topic === SYNC_TOPIC_MASTER) {
+                        handleIncomingMasterMessage(parsed);
+                    }
+                } catch (err) {
+                    console.warn("Erreur message sync MQTT :", err);
+                }
+            });
+
+            mqttClient.on('error', (err) => {
+                console.warn("Erreur MQTT :", err);
+            });
+        } catch (e) {
+            console.warn("Initialisation MQTT impossible :", e);
+        }
+    }
+}
+
+// Initialisations immédiates et au chargement complet
+initSessionControl();
+initRealtimeSync();
+document.addEventListener('DOMContentLoaded', () => {
+    initSessionControl();
+    updateAdminUI();
+});
+
+// =========================================================================
 // ⚠️ GESTION DU PANNEAU LATÉRAL DROIT : ZONES D'IMPACT & DÉVIATIONS
 // =========================================================================
 const activeZonesSet = new Set();
@@ -523,6 +905,26 @@ function renderZonesList(zones) {
             <span class="zone-desc">${zone.description}</span>
         `;
 
+        const actionsRight = document.createElement('div');
+        actionsRight.style.display = 'flex';
+        actionsRight.style.alignItems = 'center';
+        actionsRight.style.gap = '8px';
+
+        // Bouton modifier réservé au mode admin
+        if (isAdmin) {
+            const btnEdit = document.createElement('button');
+            btnEdit.type = 'button';
+            btnEdit.className = 'btn-text-edit';
+            btnEdit.innerHTML = '✏️';
+            btnEdit.title = 'Modifier ce secteur';
+            btnEdit.style.padding = '4px 6px';
+            btnEdit.onclick = (e) => {
+                e.stopPropagation();
+                openZoneEditor(zone.id);
+            };
+            actionsRight.appendChild(btnEdit);
+        }
+
         const switchLabel = document.createElement('label');
         switchLabel.className = 'zone-toggle-switch';
 
@@ -531,7 +933,13 @@ function renderZonesList(zones) {
         input.id = `chk-zone-${zone.id}`;
         input.checked = activeZonesSet.has(zone.id);
 
-        input.addEventListener('change', () => {
+        input.addEventListener('change', (e) => {
+            if (!isMaster) {
+                e.preventDefault();
+                input.checked = activeZonesSet.has(zone.id);
+                showSyncToast("⚠️ Session en lecture seule. Prenez la main (👑) pour piloter l'affichage.");
+                return;
+            }
             setZoneActive(zone.id, input.checked);
         });
 
@@ -540,9 +948,10 @@ function renderZonesList(zones) {
 
         switchLabel.appendChild(input);
         switchLabel.appendChild(slider);
+        actionsRight.appendChild(switchLabel);
 
         row.appendChild(info);
-        row.appendChild(switchLabel);
+        row.appendChild(actionsRight);
         container.appendChild(row);
     });
 }
@@ -578,7 +987,6 @@ function setZoneActive(zoneId, isActive) {
                 const rowDest = chkDest ? chkDest.closest('.dest-row') : null;
 
                 if (isActive) {
-                    // La ligne doit être affichée pour voir tout le tracé non impacté
                     if (!map.hasLayer(dirLayers[key])) {
                         map.addLayer(dirLayers[key]);
                     }
@@ -621,6 +1029,11 @@ function setZoneActive(zoneId, isActive) {
 
     renderDeviationsOnMap();
     renderZoneDetailsPanel();
+
+    // Diffusion immédiate de l'affichage unique sur tous les écrans
+    if (isMaster) {
+        broadcastAppState();
+    }
 }
 
 // Fonction de projection pour découper la ligne entre le point de déviation et de retour
@@ -1027,6 +1440,11 @@ function startDrawingForLigneIndex(index) {
 }
 
 function openZoneEditor(zoneIdToEdit) {
+    if (!isAdmin) {
+        openAdminPinModal();
+        return;
+    }
+
     const viewList = document.getElementById('view-zones-list');
     const viewEdit = document.getElementById('view-zone-editor');
     if (!viewList || !viewEdit) return;
@@ -1040,6 +1458,12 @@ function openZoneEditor(zoneIdToEdit) {
     const titleEl = document.getElementById('editor-title-label');
     const nomInput = document.getElementById('edit-zone-nom');
     const descInput = document.getElementById('edit-zone-desc');
+    const deleteBox = document.getElementById('editor-delete-box');
+
+    // Le bouton de suppression n'apparaît que si on modifie une zone existante
+    if (deleteBox) {
+        deleteBox.style.display = zoneIdToEdit ? 'block' : 'none';
+    }
 
     currentEditorLignes = [];
 
@@ -1082,6 +1506,10 @@ function openZoneEditor(zoneIdToEdit) {
 }
 
 function editCurrentSelectedZone() {
+    if (!isAdmin) {
+        openAdminPinModal();
+        return;
+    }
     const firstActive = activeZonesSet.values().next().value;
     const targetId = firstActive || (allDeviationsConfig && allDeviationsConfig.zones[0] ? allDeviationsConfig.zones[0].id : null);
     if (targetId) {
@@ -1100,6 +1528,36 @@ function closeZoneEditor() {
     viewList.style.display = 'block';
     currentlyEditingZoneId = null;
     drawingLigneIndex = null;
+}
+
+function deleteCurrentZoneFromEditor() {
+    if (!currentlyEditingZoneId || !allDeviationsConfig) return;
+    const targetZone = allDeviationsConfig.zones.find(z => z.id === currentlyEditingZoneId);
+    const nomZone = targetZone ? targetZone.nom : "ce secteur";
+
+    if (!confirm(`Confirmer la suppression définitive du secteur d'impact :\n« ${nomZone} » ?\n\nCette action sera immédiatement répercutée sur tous les écrans connectés.`)) {
+        return;
+    }
+
+    allDeviationsConfig.zones = allDeviationsConfig.zones.filter(z => z.id !== currentlyEditingZoneId);
+    activeZonesSet.delete(currentlyEditingZoneId);
+
+    try {
+        localStorage.setItem('besancon_live_deviations', JSON.stringify(allDeviationsConfig));
+        localStorage.setItem('besancon_live_active_zones', JSON.stringify(Array.from(activeZonesSet)));
+    } catch (e) {
+        console.warn("Erreur sauvegarde :", e);
+    }
+
+    // Diffusion de l'état mis à jour à tous les écrans
+    broadcastAppState();
+
+    renderZonesList(allDeviationsConfig.zones);
+    renderDeviationsOnMap();
+    renderZoneDetailsPanel();
+    closeZoneEditor();
+
+    showSyncToast(`🗑️ Secteur « ${nomZone} » supprimé.`);
 }
 
 function saveZoneFromEditor(event) {
@@ -1182,16 +1640,20 @@ function saveZoneFromEditor(event) {
     // Sauvegarde immédiate dans localStorage (accès direct en écriture)
     try {
         localStorage.setItem('besancon_live_deviations', JSON.stringify(allDeviationsConfig));
+        localStorage.setItem('besancon_live_active_zones', JSON.stringify(Array.from(activeZonesSet)));
     } catch (e) {
         console.warn("Erreur sauvegarde localStorage :", e);
     }
+
+    // Diffusion immédiate de l'affichage unique sur tous les écrans
+    broadcastAppState();
 
     renderZonesList(allDeviationsConfig.zones);
     renderDeviationsOnMap();
     renderZoneDetailsPanel();
     closeZoneEditor();
 
-    alert("Zone d'impact et ensemble de ses lignes enregistrées avec succès !");
+    showSyncToast("💾 Secteur d'impact enregistré et synchronisé !");
 }
 
 // =========================================================================

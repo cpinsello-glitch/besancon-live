@@ -74,18 +74,37 @@
                 <h2 id="panel-title-text">Zones d'impact & Déviations</h2>
             </div>
             <div class="panel-header-actions">
-                <button type="button" class="btn-panel-action" id="btn-add-zone" onclick="openZoneEditor()" title="Créer un nouveau secteur d'impact">➕ Nouveau</button>
+                <button type="button" class="btn-admin-access" id="btn-admin-access" onclick="toggleAdminAccess()" title="Accès administrateur (Code PIN)">
+                    🔒 Admin
+                </button>
+                <button type="button" class="btn-panel-action" id="btn-add-zone" onclick="openZoneEditor()" title="Créer un nouveau secteur d'impact" style="display: none;">
+                    <span class="plus-yellow">+</span> Nouveau
+                </button>
                 <button type="button" class="btn-close-panel" id="btn-close-deviation-panel" onclick="toggleDeviationPanel(false)" title="Fermer le panneau">✕</button>
             </div>
         </div>
 
         <div class="deviation-panel-body">
+            <!-- CONTRÔLE DE SESSION MAÎTRE / LECTURE SEULE -->
+            <div class="session-control-bar" id="session-control-bar">
+                <div class="session-status-info">
+                    <span class="session-dot dot-readonly" id="session-dot"></span>
+                    <div class="session-text-group">
+                        <span class="session-status-text" id="session-status-text">Session en lecture seule</span>
+                        <span class="session-subtext" id="session-subtext">Poste : <strong id="session-my-id">...</strong></span>
+                    </div>
+                </div>
+                <button type="button" class="btn-master-toggle" id="btn-master-toggle" onclick="toggleMasterRole()" title="Prendre la main pour piloter l'affichage sur tous les écrans">
+                    👑 Prendre la main
+                </button>
+            </div>
+
             <!-- VUE 1 : CONSULTATION & ACTIVATION OPÉRATIONNELLE -->
             <div id="view-zones-list" class="panel-view-section">
                 <div class="zone-selector-box">
                     <div class="section-label-row">
                         <span class="section-label">SÉLECTEUR DE ZONE D'IMPACT</span>
-                        <button type="button" class="btn-text-edit" onclick="editCurrentSelectedZone()" title="Modifier la zone active">✏️ Modifier</button>
+                        <button type="button" class="btn-text-edit" id="btn-edit-active-zone" onclick="editCurrentSelectedZone()" title="Modifier la zone active" style="display: none;">✏️ Modifier</button>
                     </div>
                     <div id="zones-list" class="zones-list">
                         <!-- Généré dynamiquement -->
@@ -153,6 +172,13 @@
                         <button type="submit" class="btn-save-zone">💾 Enregistrer le secteur et ses lignes</button>
                         <button type="button" class="btn-cancel-edit" onclick="closeZoneEditor()">Annuler</button>
                     </div>
+
+                    <!-- Bouton rouge pour supprimer la zone d'impact en bas de la page -->
+                    <div class="editor-delete-box" id="editor-delete-box" style="display: none;">
+                        <button type="button" class="btn-delete-zone" onclick="deleteCurrentZoneFromEditor()">
+                            🗑️ Supprimer définitivement ce secteur d'impact
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -170,10 +196,40 @@
         </button>
     </div>
 
+    <!-- 🔐 MODAL POPUP DU CODE PIN ADMIN (4 CHIFFRES) -->
+    <div id="modal-admin-pin" class="modal-backdrop" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-icon">🔐</div>
+                <h3>Accès Administrateur</h3>
+                <p>Entrez le code PIN à 4 chiffres pour créer, modifier ou supprimer des secteurs d'impact.</p>
+            </div>
+            <form id="form-admin-pin" onsubmit="submitAdminPin(event)">
+                <div class="pin-inputs-container">
+                    <input type="password" id="input-admin-pin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="off" required>
+                </div>
+                <div id="pin-error-msg" class="pin-error-msg" style="display: none;">Code PIN incorrect.</div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-modal-confirm">Déverrouiller</button>
+                    <button type="button" class="btn-modal-cancel" onclick="closeAdminPinModal()">Annuler</button>
+                </div>
+                <div class="pin-hint">Code PIN par défaut : <strong>1234</strong></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 📡 NOTIFICATION TOAST SYNCHRONISATION MULTI-ÉCRANS -->
+    <div id="sync-toast" class="sync-toast">
+        <span class="toast-icon">⚡</span>
+        <span id="sync-toast-text" class="toast-text">Synchronisation en direct</span>
+    </div>
+
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Leaflet-Geoman JS -->
     <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+    <!-- MQTT.js over WebSocket pour la synchronisation multi-écrans temps réel -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <script src="app.js"></script>
 </body>

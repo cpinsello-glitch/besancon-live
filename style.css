@@ -1184,3 +1184,342 @@ input:checked + .slider-round:before {
     font-weight: 600;
     cursor: pointer;
 }
+
+/* =========================================================================
+   🔒 MODE ADMIN, SIGNE + JAUNE & SUPPRESSION DE SECTEUR
+   ========================================================================= */
+.plus-yellow {
+    color: #eab308;
+    font-weight: 900;
+    font-size: 16px;
+    margin-right: 2px;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.btn-admin-access {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-admin-access:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.btn-admin-access.is-logged {
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+    color: #047857;
+}
+
+.editor-delete-box {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #fca5a5;
+}
+
+.btn-delete-zone {
+    width: 100%;
+    background: #fee2e2;
+    border: 1.5px solid #f87171;
+    color: #dc2626;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-delete-zone:hover {
+    background: #fecaca;
+    border-color: #ef4444;
+    color: #b91c1c;
+}
+
+/* =========================================================================
+   👑 CONTRÔLE DE SESSION MAÎTRE / LECTURE SEULE
+   ========================================================================= */
+.session-control-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.session-status-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.session-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.session-dot.dot-readonly {
+    background: #f59e0b;
+}
+
+.session-dot.dot-master {
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+    animation: pulseDot 2s infinite ease-in-out;
+}
+
+.session-dot.dot-locked {
+    background: #ef4444;
+}
+
+@keyframes pulseDot {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.75;
+    }
+}
+
+.session-text-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.session-status-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-subtext {
+    font-size: 10px;
+    color: #6b7280;
+}
+
+.btn-master-toggle {
+    background: #1f2937;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-master-toggle:hover {
+    background: #374151;
+}
+
+.btn-master-toggle.is-master {
+    background: #047857;
+    color: #ffffff;
+}
+
+.btn-master-toggle.is-master:hover {
+    background: #065f46;
+}
+
+.btn-master-toggle.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* =========================================================================
+   🔐 MODAL POPUP DU CODE PIN ADMIN
+   ========================================================================= */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(17, 24, 39, 0.6);
+    backdrop-filter: blur(5px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeInModal 0.2s ease;
+}
+
+@keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    width: 320px;
+    max-width: 90vw;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    animation: popModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popModal {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header .modal-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: 6px;
+}
+
+.modal-header p {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+.pin-inputs-container {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0 12px 0;
+}
+
+.pin-inputs-container input {
+    width: 130px;
+    font-size: 26px;
+    letter-spacing: 10px;
+    text-align: center;
+    padding: 8px 10px;
+    border: 2px solid #d1d5db;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.pin-inputs-container input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.pin-error-msg {
+    color: #dc2626;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-modal-confirm {
+    flex: 1;
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn-modal-confirm:hover {
+    background: #1d4ed8;
+}
+
+.btn-modal-cancel {
+    flex: 1;
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-modal-cancel:hover {
+    background: #e5e7eb;
+}
+
+.pin-hint {
+    margin-top: 12px;
+    font-size: 10px;
+    color: #9ca3af;
+}
+
+/* =========================================================================
+   📡 NOTIFICATION TOAST SYNCHRONISATION MULTI-ÉCRANS
+   ========================================================================= */
+.sync-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(17, 24, 39, 0.92);
+    color: #ffffff;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(15px);
+    pointer-events: none;
+    transition: all 0.25s ease;
+}
+
+.sync-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.sync-toast .toast-icon {
+    color: #f59e0b;
+    font-size: 13px;
+}
